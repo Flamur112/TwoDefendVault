@@ -7,7 +7,7 @@ function normalizeAppUrl(url: string | undefined): string {
 const appUrl = normalizeAppUrl(process.env.APP_URL)
 
 export default defineNuxtConfig({
-  modules: ['@nuxtjs/supabase', 'nuxt-security'],
+  modules: ['@netlify/nuxt', '@nuxtjs/supabase', 'nuxt-security'],
 
   // Avoid dev-only Vite race with routeRules + #app-manifest (nuxt/nuxt#33606).
   experimental: {
@@ -74,7 +74,6 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'netlify',
     output: {
-      dir: '.output',
       publicDir: '.output/public',
     },
   },
