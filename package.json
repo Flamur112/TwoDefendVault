@@ -1,0 +1,30 @@
+{
+  "name": "twodefend-vault",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "test:crypto": "tsx scripts/crypto-roundtrip.ts",
+    "seed:vaults": "tsx scripts/seed-vaults.ts",
+    "seed:clients": "tsx scripts/seed-clients.ts",
+    "migrate": "tsx scripts/run-migrations.ts",
+    "test:phase5": "tsx scripts/phase5-verify.ts",
+    "test:totp": "tsx scripts/test-totp.ts"
+  },
+  "dependencies": {
+    "@nuxtjs/supabase": "^2.0.10",
+    "nuxt": "^3.21.11",
+    "nuxt-security": "^2.6.0",
+    "otpauth": "^9.5.1",
+    "pg": "^8.23.0",
+    "vue": "^3.5.41",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
+  }
+}

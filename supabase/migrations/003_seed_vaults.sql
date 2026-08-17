@@ -1,0 +1,2 @@
+-- Vaults are created per client via the app (Add Vault on client credentials).
+-- No default org-wide vault names are seeded.
