@@ -1,5 +1,11 @@
 const isProd = process.env.NODE_ENV === 'production'
 
+function normalizeAppUrl(url: string | undefined): string {
+  return (url || '').replace(/\/$/, '')
+}
+
+const appUrl = normalizeAppUrl(process.env.APP_URL)
+
 export default defineNuxtConfig({
   modules: ['@nuxtjs/supabase', 'nuxt-security'],
 
@@ -15,7 +21,6 @@ export default defineNuxtConfig({
     orgSlug: process.env.ORG_SLUG,
     zohoClientId: process.env.ZOHO_CLIENT_ID,
     zohoClientSecret: process.env.ZOHO_CLIENT_SECRET,
-    zohoRedirectUri: process.env.ZOHO_REDIRECT_URI,
     zohoAuthUrl: process.env.ZOHO_AUTH_URL,
     zohoTokenUrl: process.env.ZOHO_TOKEN_URL,
     zohoUserInfoUrl: process.env.ZOHO_USER_INFO_URL,
@@ -23,7 +28,7 @@ export default defineNuxtConfig({
     public: {
       supabaseUrl: process.env.SUPABASE_URL,
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-      appUrl: process.env.APP_URL,
+      appUrl,
       supabase: {
         url: process.env.SUPABASE_URL,
         key: process.env.SUPABASE_ANON_KEY,
@@ -68,6 +73,10 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'netlify',
+    output: {
+      dir: '.output',
+      publicDir: '.output/public',
+    },
   },
 
   routeRules: {

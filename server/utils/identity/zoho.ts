@@ -1,4 +1,5 @@
 import type { AuthenticatedIdentity, IdentityProvider } from './types'
+import { getOAuthCallbackUrl } from '../app-url'
 
 interface ZohoTokenResponse {
   access_token: string
@@ -21,7 +22,7 @@ interface ZohoUserInfo {
 
 function getZohoConfig() {
   const config = useRuntimeConfig()
-  if (!config.zohoClientId || !config.zohoClientSecret || !config.zohoRedirectUri
+  if (!config.zohoClientId || !config.zohoClientSecret
     || !config.zohoAuthUrl || !config.zohoTokenUrl || !config.zohoUserInfoUrl) {
     throw createError({ statusCode: 503, statusMessage: 'Zoho OAuth not configured' })
   }
@@ -58,7 +59,7 @@ export const zohoIdentityProvider: IdentityProvider = {
     const params = new URLSearchParams({
       client_id: config.zohoClientId,
       response_type: 'code',
-      redirect_uri: config.zohoRedirectUri,
+      redirect_uri: getOAuthCallbackUrl(),
       scope: 'AaaServer.profile.READ,email',
       access_type: 'offline',
       prompt: 'consent',
@@ -74,7 +75,7 @@ export const zohoIdentityProvider: IdentityProvider = {
       grant_type: 'authorization_code',
       client_id: config.zohoClientId,
       client_secret: config.zohoClientSecret,
-      redirect_uri: config.zohoRedirectUri,
+      redirect_uri: getOAuthCallbackUrl(),
       code,
     })
 

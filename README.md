@@ -23,15 +23,16 @@ npm run dev
 npm run build
 ```
 
-Build uses the Netlify Nitro preset (`dist/` + serverless functions).
+Build uses the Netlify Nitro preset (`.output/public` + serverless functions).
 
 ## Database migrations
 
-Run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor after the project is created.
+Run migrations locally with `npm run migrate` (see `.env.example` for DB connection vars).
 
 ## Deployment (Netlify)
 
 - Base directory: `vault-app`
 - Build command: `npm run build`
-- Publish directory: `dist`
-- Set all env vars from `.env.example` in Netlify site settings
+- Publish directory: `.output/public`
+- Set env vars from `.env.example` in Netlify site settings
+- Production `APP_URL`: `https://vault.twodefend.com` (OAuth callback is derived automatically)

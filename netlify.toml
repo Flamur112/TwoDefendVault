@@ -1,8 +1,14 @@
 [build]
   command = "npm run build"
-  publish = "dist"
+  publish = ".output/public"
 
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/server"
-  status = 200
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+
+[build.environment]
+  NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_KEYS = "ORG_SLUG,APP_URL,ZOHO_AUTH_URL,ZOHO_TOKEN_URL,ZOHO_USER_INFO_URL,ZOHO_REDIRECT_URI"
+  SECRETS_SCAN_OMIT_PATHS = ".env.example,VAULT_AGENT.md,scripts/*,supabase/*"
