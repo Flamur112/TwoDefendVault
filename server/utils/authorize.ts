@@ -5,6 +5,17 @@ import { getSupabaseAdmin } from './supabase'
 
 const ACCESS_LEVELS = { read: 1, write: 2, admin: 3 } as const
 
+type AccessibleVault = {
+  id: string
+  name: string
+  description: string | null
+  client_id: string | null
+  created_at: string
+}
+
+const vaultCache = new Map<string, { at: number, vaults: AccessibleVault[] }>()
+const VAULT_CACHE_MS = 60_000
+
 export async function requireAuth(event: H3Event): Promise<SessionUser> {
   const user = event.context.user ?? await getSessionUser(event)
   if (!user) {
@@ -38,7 +49,12 @@ async function assertVaultInOrg(vaultId: string, orgId: string): Promise<void> {
   }
 }
 
-export async function getAccessibleVaults(user: SessionUser) {
+async function loadAccessibleVaults(user: SessionUser): Promise<AccessibleVault[]> {
+  const cached = vaultCache.get(user.id)
+  if (cached && Date.now() - cached.at < VAULT_CACHE_MS) {
+    return cached.vaults
+  }
+
   const supabase = getSupabaseAdmin()
 
   if (user.role === 'admin') {
@@ -49,7 +65,9 @@ export async function getAccessibleVaults(user: SessionUser) {
       .order('name')
 
     if (error) throw createError({ statusCode: 500, statusMessage: 'Failed to list vaults' })
-    return data ?? []
+    const vaults = data ?? []
+    vaultCache.set(user.id, { at: Date.now(), vaults })
+    return vaults
   }
 
   const { data, error } = await supabase
@@ -60,7 +78,26 @@ export async function getAccessibleVaults(user: SessionUser) {
     .order('name')
 
   if (error) throw createError({ statusCode: 500, statusMessage: 'Failed to list vaults' })
-  return data ?? []
+  const vaults = data ?? []
+  vaultCache.set(user.id, { at: Date.now(), vaults })
+  return vaults
+}
+
+export async function getAccessibleVaults(user: SessionUser, event?: H3Event) {
+  if (event?.context.accessibleVaults) {
+    return event.context.accessibleVaults
+  }
+
+  const vaults = await loadAccessibleVaults(user)
+  if (event) {
+    event.context.accessibleVaults = vaults
+  }
+  return vaults
+}
+
+export async function getAccessibleVaultIds(user: SessionUser, event?: H3Event): Promise<string[]> {
+  const vaults = await getAccessibleVaults(user, event)
+  return vaults.map(vault => vault.id)
 }
 
 export async function requireItemAccess(

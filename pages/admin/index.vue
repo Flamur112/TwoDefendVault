@@ -1,5 +1,7 @@
 <script setup lang="ts">
-definePageMeta({ middleware: ['auth', 'admin'] })
+import { AUDIT_RETENTION_DAYS } from '~/utils/audit-display'
+
+definePageMeta({ middleware: 'auth' })
 
 const { user } = useSession()
 </script>
@@ -11,14 +13,37 @@ const { user } = useSession()
       Signed in as {{ user?.displayName || user?.email }}
     </p>
 
+    <section class="card guide">
+      <h2 class="guide-title">Admin guide</h2>
+      <p class="text-muted guide-lead">
+        Use the sections below to manage who can access the vault and review security activity.
+      </p>
+      <dl class="guide-list">
+        <div>
+          <dt>Users</dt>
+          <dd>
+            Add employees by email before their first sign-in, set roles (Admin, Member, Read-only),
+            and deactivate accounts when someone leaves. Users sign in with Zoho; no passwords are managed here.
+          </dd>
+        </div>
+        <div>
+          <dt>Audit log</dt>
+          <dd>
+            Review sign-ins, credential access, and admin changes. Entries are kept for
+            {{ AUDIT_RETENTION_DAYS }} days. Timestamps appear in each admin's local timezone.
+          </dd>
+        </div>
+      </dl>
+    </section>
+
     <nav class="admin-grid">
       <NuxtLink to="/admin/users" class="admin-card card">
         <h2>Users</h2>
-        <p class="text-muted">Manage roles, provision employees, deactivate accounts</p>
+        <p class="text-muted">Provision employees, assign roles, deactivate accounts</p>
       </NuxtLink>
       <NuxtLink to="/admin/audit" class="admin-card card">
         <h2>Audit Log</h2>
-        <p class="text-muted">View security and access events</p>
+        <p class="text-muted">Review sign-ins, access events, and admin actions</p>
       </NuxtLink>
     </nav>
   </div>
@@ -27,6 +52,40 @@ const { user } = useSession()
 <style scoped>
 .subtitle {
   margin: -0.5rem 0 1.5rem;
+}
+
+.guide {
+  margin-bottom: 1.25rem;
+}
+
+.guide-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.9375rem;
+}
+
+.guide-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.guide-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.guide-list dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.guide-list dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .admin-grid {

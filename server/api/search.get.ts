@@ -1,6 +1,7 @@
 import { requireAuth, getAccessibleVaults } from '../utils/authorize'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { CLIENT_SECTIONS, isClientSection } from '../../utils/client-sections'
+import { canViewProject } from '../utils/project-access'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'
 
 const MAX_CLIENTS = 8
@@ -16,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const raw = typeof query.q === 'string' ? query.q.trim() : ''
 
-  if (!raw) {
+  if (!raw || raw.length < 2) {
     return { clients: [], credentials: [], records: [] }
   }
 
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
       .or(`name.ilike.%${ilike}%,industry.ilike.%${ilike}%,slug.ilike.%${ilike}%`)
       .order('name')
       .limit(MAX_CLIENTS),
-    getAccessibleVaults(user),
+    getAccessibleVaults(user, event),
     supabase
       .from('client_records')
       .select(`
@@ -39,11 +40,12 @@ export default defineEventHandler(async (event) => {
         client_id,
         section,
         title,
+        metadata,
         clients!inner(id, name, org_id)
       `)
       .eq('clients.org_id', user.orgId)
       .ilike('title', `%${ilike}%`)
-      .limit(MAX_RECORDS),
+      .limit(MAX_RECORDS * 3),
   ])
 
   if (clientsRes.error) {
@@ -124,23 +126,31 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const records = !recordsRes.error
-    ? (recordsRes.data ?? []).map((row) => {
-        const client = Array.isArray(row.clients) ? row.clients[0] : row.clients
-        const section = isClientSection(row.section) ? row.section : 'documents'
-        const sectionLabel = CLIENT_SECTIONS[section]?.label ?? row.section
-        return {
-          type: 'record' as const,
-          id: row.id,
-          title: row.title,
-          section,
-          sectionLabel,
-          clientId: row.client_id,
-          clientName: client?.name ?? 'Client',
-          href: `/clients/${row.client_id}/${section}`,
-        }
+  const recordRows = !recordsRes.error
+    ? (recordsRes.data ?? []).filter((row) => {
+        if (row.section !== 'projects') return true
+        return canViewProject(user, row.metadata)
       })
     : []
+
+  const records = recordRows.slice(0, MAX_RECORDS).map((row) => {
+    const client = Array.isArray(row.clients) ? row.clients[0] : row.clients
+    const section = isClientSection(row.section) ? row.section : 'documents'
+    const sectionLabel = CLIENT_SECTIONS[section]?.label ?? row.section
+    const href = section === 'documents'
+      ? `/clients/${row.client_id}/documents/${row.id}`
+      : `/clients/${row.client_id}/${section}`
+    return {
+      type: 'record' as const,
+      id: row.id,
+      title: row.title,
+      section,
+      sectionLabel,
+      clientId: row.client_id,
+      clientName: client?.name ?? 'Client',
+      href,
+    }
+  })
 
   return { clients, credentials, records }
 })

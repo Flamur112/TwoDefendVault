@@ -33,10 +33,8 @@
 </template>
 
 <script setup lang="ts">
-const { user, fetchSession } = useSession()
+const { user } = useSession()
 const { collapsed, toggle } = useSidebar()
-
-await fetchSession()
 
 const isAdmin = computed(() => user.value?.role === 'admin')
 

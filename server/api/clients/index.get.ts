@@ -1,5 +1,6 @@
 import { requireAuth } from '../../utils/authorize'
 import { mapClient } from '../../utils/client-map'
+import { getUserFavoriteClientIds } from '../../utils/client-favorites'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
@@ -8,13 +9,11 @@ export default defineEventHandler(async (event) => {
   const search = typeof query.q === 'string' ? query.q.trim().toLowerCase() : ''
 
   const supabase = getSupabaseAdmin()
-  let dbQuery = supabase
+  const { data: clients, error } = await supabase
     .from('clients')
     .select('*')
     .eq('org_id', user.orgId)
     .order('name')
-
-  const { data: clients, error } = await dbQuery
 
   if (error) {
     throw createError({ statusCode: 500, statusMessage: 'Failed to list clients' })
@@ -28,5 +27,9 @@ export default defineEventHandler(async (event) => {
     )
   }
 
-  return { clients: filtered.map(c => mapClient(c)) }
+  const favoriteIds = await getUserFavoriteClientIds(user.id)
+
+  return {
+    clients: filtered.map(c => mapClient(c, { isFavorite: favoriteIds.has(c.id as string) })),
+  }
 })

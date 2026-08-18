@@ -5,8 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const vaultId = computed(() => route.params.vaultId as string)
-const { user, fetchSession } = useSession()
-await fetchSession()
+const { user } = useSession()
 
 const vault = ref<VaultSummary | null>(null)
 const items = ref<VaultItemRecord[]>([])

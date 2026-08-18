@@ -10,25 +10,27 @@ export interface SectionField {
   key: string
   label: string
   placeholder?: string
-  type?: 'text' | 'url' | 'date' | 'number'
+  type?: 'text' | 'url' | 'date' | 'number' | 'select' | 'user'
+  options?: string[]
 }
 
 export interface SectionConfig {
   label: string
   description: string
+  helpText?: string
   addLabel: string
+  titleLabel?: string
+  titlePlaceholder?: string
+  notesPlaceholder?: string
   fields: SectionField[]
 }
 
 export const CLIENT_SECTIONS: Record<ClientSection, SectionConfig> = {
   documents: {
     label: 'Documents',
-    description: 'Contracts, SOPs, runbooks, and reference documents.',
-    addLabel: 'Add document',
-    fields: [
-      { key: 'docType', label: 'Type', placeholder: 'Contract, SOP, runbook…' },
-      { key: 'url', label: 'Link', type: 'url', placeholder: 'https://…' },
-    ],
+    description: 'How-to guides and info docs written in Markdown for this client.',
+    addLabel: 'New document',
+    fields: [],
   },
   assets: {
     label: 'Assets',
@@ -75,13 +77,9 @@ export const CLIENT_SECTIONS: Record<ClientSection, SectionConfig> = {
   },
   projects: {
     label: 'Projects',
-    description: 'Open and completed projects for this client.',
+    description: 'Track status, team assignments, and progress updates for client work.',
     addLabel: 'Add project',
-    fields: [
-      { key: 'status', label: 'Status', placeholder: 'Open, on hold, completed…' },
-      { key: 'startDate', label: 'Start date', type: 'date' },
-      { key: 'endDate', label: 'End / target date', type: 'date' },
-    ],
+    fields: [],
   },
 }
 
@@ -89,4 +87,11 @@ export const CLIENT_SECTION_SLUGS = Object.keys(CLIENT_SECTIONS) as ClientSectio
 
 export function isClientSection(value: string): value is ClientSection {
   return CLIENT_SECTION_SLUGS.includes(value as ClientSection)
+}
+
+/** Stored name field for a user picker (e.g. assigneeUserId → assigneeName). */
+export function sectionFieldDisplayKey(field: SectionField): string | null {
+  if (field.type !== 'user') return null
+  if (field.key.endsWith('UserId')) return field.key.replace(/UserId$/, 'Name')
+  return `${field.key}Name`
 }

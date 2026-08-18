@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@nuxtjs/supabase": "^2.0.10",
+    "marked": "^15.0.12",
     "nuxt": "^3.21.11",
     "nuxt-security": "^2.6.0",
     "otpauth": "^9.5.1",
@@ -28,7 +29,6 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
-    "@netlify/nuxt": "^0.3.9",
     "tsx": "^4.23.12"
   }
 }

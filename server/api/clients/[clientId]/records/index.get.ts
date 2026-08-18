@@ -1,12 +1,13 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
 import { mapClientRecord, parseSectionParam } from '../../../../utils/client-records'
+import { filterVisibleProjects } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
   if (!clientId) throw createError({ statusCode: 400, statusMessage: 'Client ID required' })
 
-  await requireClientInOrg(event, clientId)
+  const { user } = await requireClientInOrg(event, clientId)
 
   const query = getQuery(event)
   const section = parseSectionParam(typeof query.section === 'string' ? query.section : undefined)
@@ -28,7 +29,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: message })
   }
 
-  let records = (data ?? []).map(mapClientRecord)
+  let rows = data ?? []
+  if (section === 'projects') {
+    rows = filterVisibleProjects(user, rows)
+  }
+
+  let records = rows.map(mapClientRecord)
   if (search) {
     records = records.filter((record) => {
       const haystack = [

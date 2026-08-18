@@ -13,7 +13,7 @@ export interface VaultItemRecord {
   name: string
   url: string | null
   tags: string[] | null
-  encryptedData: string
+  encryptedData?: string
   createdAt: string
   updatedAt: string
 }

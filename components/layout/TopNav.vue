@@ -93,7 +93,7 @@
 import type { GlobalSearchResults } from '~/types/search'
 
 const route = useRoute()
-const { user, fetchSession, logout } = useSession()
+const { user, logout } = useSession()
 const { collapsed, toggle } = useSidebar()
 const appSearch = useAppSearch()
 const apiFetch = useApiFetch()
@@ -104,8 +104,6 @@ const searchText = computed({
     appSearch.query.value = value
   },
 })
-
-await fetchSession()
 
 const open = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
@@ -140,7 +138,7 @@ let globalDebounce: ReturnType<typeof setTimeout> | null = null
 
 async function runGlobalSearch() {
   const q = appSearch.query.value.trim()
-  if (!q || !showTopSearch.value) {
+  if (!q || q.length < 2 || !showTopSearch.value) {
     globalResults.value = { clients: [], credentials: [], records: [] }
     globalError.value = ''
     return
@@ -163,7 +161,7 @@ async function runGlobalSearch() {
 watch(appSearch.query, () => {
   if (!showTopSearch.value) return
   if (globalDebounce) clearTimeout(globalDebounce)
-  globalDebounce = setTimeout(runGlobalSearch, 250)
+  globalDebounce = setTimeout(runGlobalSearch, 400)
 })
 
 watch(() => route.path, (path, previousPath) => {

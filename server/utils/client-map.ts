@@ -23,7 +23,12 @@ export interface ClientRecord {
   updatedAt: string
 }
 
-export function mapClient(row: Record<string, unknown>): ClientRecord {
+export const CLIENT_LIST_COLUMNS = 'id, org_id, name, slug, industry, website, phone, address, city, state, country, postal_code, notes, logo_url, onboarded_at, is_favorite, created_at, updated_at'
+
+export function mapClient(
+  row: Record<string, unknown>,
+  options?: { isFavorite?: boolean },
+): ClientRecord {
   return {
     id: row.id as string,
     orgId: row.org_id as string,
@@ -40,7 +45,7 @@ export function mapClient(row: Record<string, unknown>): ClientRecord {
     notes: (row.notes as string) ?? null,
     logoUrl: (row.logo_url as string) ?? null,
     onboardedAt: (row.onboarded_at as string) ?? null,
-    isFavorite: Boolean(row.is_favorite),
+    isFavorite: options?.isFavorite ?? false,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }

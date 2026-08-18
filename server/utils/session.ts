@@ -111,7 +111,7 @@ export async function revokeSession(event: H3Event, token?: string): Promise<voi
     .update({ revoked_at: new Date().toISOString() })
     .eq('token_hash', tokenHash)
 
-  deleteCookie(event, SESSION_COOKIE, { path: '/' })
+  deleteCookie(event, SESSION_COOKIE, cookieOptions(event, 0))
 }
 
 export async function revokeAllUserSessions(userId: string): Promise<void> {

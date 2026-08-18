@@ -22,26 +22,20 @@
 
 <script setup lang="ts">
 import type { DashboardActivityEntry } from '~/types/dashboard'
+import { formatClientActivityAction } from '~/utils/client-activity'
 
 defineProps<{
   entries: DashboardActivityEntry[]
   loading?: boolean
 }>()
 
-const ACTION_LABELS: Record<string, string> = {
-  edited: 'Client edited',
-  created: 'Client created',
-  vault_added: 'Vault added',
-  credential_added: 'Credential added',
-  favorite_toggled: 'Favorite updated',
-}
-
 function formatAction(entry: DashboardActivityEntry) {
-  return ACTION_LABELS[entry.action] ?? entry.action.replace(/_/g, ' ')
+  return formatClientActivityAction(entry.action, entry.metadata as Record<string, unknown> | null)
 }
 
 function actionClass(action: string): string {
   if (action === 'credential_added') return 'action--teal'
+  if (action.startsWith('documents_')) return 'action--violet'
   if (action === 'favorite_toggled') return 'action--gold'
   if (action === 'created') return 'action--violet'
   return 'action--sky'

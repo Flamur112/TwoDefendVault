@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import type { ClientSectionRecord } from '~/types/client'
-import { CLIENT_SECTIONS, type ClientSection } from '~/utils/client-sections'
+import { CLIENT_SECTIONS, sectionFieldDisplayKey, type ClientSection } from '~/utils/client-sections'
+
+interface OrgMember {
+  id: string
+  email: string
+  displayName: string | null
+  role: string
+}
 
 const props = defineProps<{ section: ClientSection }>()
 
@@ -11,10 +18,12 @@ const apiFetch = useApiFetch()
 const appSearch = useAppSearch()
 
 const config = computed(() => CLIENT_SECTIONS[props.section])
+const needsMembers = computed(() => config.value.fields.some(field => field.type === 'user'))
 
 useAppSearchPlaceholder(`Search ${config.value.label.toLowerCase()}...`)
 
 const records = ref<ClientSectionRecord[]>([])
+const orgMembers = ref<OrgMember[]>([])
 const loading = ref(true)
 const error = ref('')
 
@@ -31,6 +40,17 @@ const form = reactive({
 })
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
+
+async function loadMembers() {
+  if (!needsMembers.value) return
+  try {
+    const data = await apiFetch<{ members: OrgMember[] }>('/api/org/members')
+    orgMembers.value = data.members
+  }
+  catch {
+    orgMembers.value = []
+  }
+}
 
 async function load() {
   loading.value = true
@@ -53,7 +73,7 @@ async function load() {
   }
 }
 
-await load()
+await Promise.all([load(), loadMembers()])
 
 const filteredRecords = computed(() => {
   if (!appSearch.normalizedQuery.value) return records.value
@@ -97,6 +117,27 @@ function closeForm() {
   editing.value = null
 }
 
+function buildMetadata(): Record<string, string> {
+  const metadata: Record<string, string> = {}
+
+  for (const field of config.value.fields) {
+    const value = form.metadata[field.key]?.trim()
+    if (!value) continue
+
+    metadata[field.key] = value
+
+    if (field.type === 'user') {
+      const displayKey = sectionFieldDisplayKey(field)
+      const member = orgMembers.value.find(m => m.id === value)
+      if (displayKey && member) {
+        metadata[displayKey] = member.displayName?.trim() || member.email
+      }
+    }
+  }
+
+  return metadata
+}
+
 async function save() {
   if (!form.title.trim()) return
   saving.value = true
@@ -106,7 +147,7 @@ async function save() {
       section: props.section,
       title: form.title.trim(),
       notes: form.notes.trim() || null,
-      metadata: form.metadata,
+      metadata: buildMetadata(),
     }
 
     if (editing.value) {
@@ -156,6 +197,35 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
   const val = record.metadata[key]
   return val || undefined
 }
+
+function fieldDisplayValue(record: ClientSectionRecord, field: (typeof config.value.fields)[number]): string | undefined {
+  if (field.type === 'user') {
+    const displayKey = sectionFieldDisplayKey(field)
+    if (displayKey) {
+      const name = record.metadata[displayKey]
+      if (name) return name
+    }
+    const userId = record.metadata[field.key]
+    if (userId) {
+      const member = orgMembers.value.find(m => m.id === userId)
+      if (member) return member.displayName?.trim() || member.email
+    }
+    return undefined
+  }
+  return fieldValue(record, field.key)
+}
+
+function memberLabel(member: OrgMember): string {
+  return member.displayName?.trim() || member.email
+}
+
+function recordLink(record: ClientSectionRecord): string | undefined {
+  return fieldValue(record, 'url')
+}
+
+function selectPlaceholder(field: (typeof config.value.fields)[number]): string {
+  return `Select ${field.label.toLowerCase()}`
+}
 </script>
 
 <template>
@@ -172,6 +242,10 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
       <button v-if="canWrite" type="button" class="btn btn-primary" @click="openCreate">
         {{ config.addLabel }}
       </button>
+    </div>
+
+    <div v-if="config.helpText && !loading && !error" class="card section-help">
+      <p>{{ config.helpText }}</p>
     </div>
 
     <UiPageSearch
@@ -194,23 +268,34 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
       <article v-for="record in filteredRecords" :key="record.id" class="card record-card">
         <div class="record-header">
           <h3>{{ record.title }}</h3>
-          <div v-if="canWrite" class="record-actions">
-            <button type="button" class="btn btn-sm" @click="openEdit(record)">Edit</button>
-            <button type="button" class="btn btn-sm btn-danger" @click="deleting = record">Delete</button>
+          <div class="record-actions">
+            <a
+              v-if="section === 'documents' && recordLink(record)"
+              :href="recordLink(record)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-sm btn-primary"
+            >
+              Open document
+            </a>
+            <template v-if="canWrite">
+              <button type="button" class="btn btn-sm" @click="openEdit(record)">Edit</button>
+              <button type="button" class="btn btn-sm btn-danger" @click="deleting = record">Delete</button>
+            </template>
           </div>
         </div>
         <dl class="record-fields">
           <template v-for="field in config.fields" :key="field.key">
-            <div v-if="fieldValue(record, field.key)">
+            <div v-if="fieldDisplayValue(record, field)">
               <dt>{{ field.label }}</dt>
               <dd>
                 <a
                   v-if="field.type === 'url'"
-                  :href="fieldValue(record, field.key)"
+                  :href="fieldDisplayValue(record, field)"
                   target="_blank"
                   rel="noopener"
-                >{{ fieldValue(record, field.key) }}</a>
-                <span v-else>{{ fieldValue(record, field.key) }}</span>
+                >Open link</a>
+                <span v-else>{{ fieldDisplayValue(record, field) }}</span>
               </dd>
             </div>
           </template>
@@ -227,12 +312,36 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
         <h3>{{ editing ? 'Edit' : config.addLabel }}</h3>
         <form class="form" @submit.prevent="save">
           <label>
-            Title
-            <input v-model="form.title" type="text" required placeholder="Name">
+            {{ config.titleLabel || 'Title' }}
+            <input
+              v-model="form.title"
+              type="text"
+              required
+              :placeholder="config.titlePlaceholder || 'Name'"
+            >
           </label>
           <label v-for="field in config.fields" :key="field.key">
             {{ field.label }}
+            <select
+              v-if="field.type === 'select'"
+              v-model="form.metadata[field.key]"
+            >
+              <option value="">{{ selectPlaceholder(field) }}</option>
+              <option v-for="option in field.options" :key="option" :value="option">
+                {{ option }}
+              </option>
+            </select>
+            <select
+              v-else-if="field.type === 'user'"
+              v-model="form.metadata[field.key]"
+            >
+              <option value="">Unassigned</option>
+              <option v-for="member in orgMembers" :key="member.id" :value="member.id">
+                {{ memberLabel(member) }}
+              </option>
+            </select>
             <input
+              v-else
               v-model="form.metadata[field.key]"
               :type="field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'"
               :placeholder="field.placeholder"
@@ -240,7 +349,11 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
           </label>
           <label>
             Notes
-            <textarea v-model="form.notes" rows="3" placeholder="Optional notes" />
+            <textarea
+              v-model="form.notes"
+              rows="3"
+              :placeholder="config.notesPlaceholder || 'Optional notes'"
+            />
           </label>
           <div class="modal-actions">
             <button type="button" class="btn" @click="closeForm">Cancel</button>
@@ -297,6 +410,18 @@ function fieldValue(record: ClientSectionRecord, key: string): string | undefine
 .count-label {
   margin: 0;
   font-size: 0.8125rem;
+}
+
+.section-help {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.section-help p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .record-list {

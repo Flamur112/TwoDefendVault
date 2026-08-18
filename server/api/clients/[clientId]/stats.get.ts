@@ -1,11 +1,12 @@
 import { requireClientInOrg } from '../../../utils/client-map'
+import { filterVisibleProjects } from '../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
   if (!clientId) throw createError({ statusCode: 400, statusMessage: 'Client ID required' })
 
-  await requireClientInOrg(event, clientId)
+  const { user } = await requireClientInOrg(event, clientId)
 
   const supabase = getSupabaseAdmin()
   const { data: vaults } = await supabase.from('vaults').select('id').eq('client_id', clientId)
@@ -26,21 +27,25 @@ export default defineEventHandler(async (event) => {
     .eq('client_id', clientId)
     .eq('section', 'assets')
 
-  const { count: projectCount, error: projectError } = await supabase
+  const { data: projectRows, error: projectError } = await supabase
     .from('client_records')
-    .select('id', { count: 'exact', head: true })
+    .select('metadata')
     .eq('client_id', clientId)
     .eq('section', 'projects')
 
   const recordsAvailable = !assetError?.message.includes('client_records')
     && !projectError?.message.includes('client_records')
 
+  const projectCount = recordsAvailable
+    ? filterVisibleProjects(user, projectRows ?? []).length
+    : 0
+
   return {
     stats: {
       credentialCount,
       vaultCount: vaultIds.length,
       assetCount: recordsAvailable ? (assetCount ?? 0) : 0,
-      projectCount: recordsAvailable ? (projectCount ?? 0) : 0,
+      projectCount,
     },
   }
 })

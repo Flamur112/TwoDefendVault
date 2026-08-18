@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import { AUDIT_ACTIONS, AUDIT_ACTION_LABELS, type AuditLogRecord } from '~/types/audit'
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTION_LABELS,
+  type AuditLogRecord,
+} from '~/types/audit'
+import {
+  AUDIT_RETENTION_DAYS,
+  AUDIT_TARGET_TYPE_LABELS,
+  formatAuditMetadata,
+  formatAuditTimestamp,
+} from '~/utils/audit-display'
 
-definePageMeta({ middleware: ['auth', 'admin'] })
+definePageMeta({ middleware: 'auth' })
 
 const apiFetch = useApiFetch()
 
 const logs = ref<AuditLogRecord[]>([])
 const total = ref(0)
+const retentionDays = ref(AUDIT_RETENTION_DAYS)
 const loading = ref(true)
 const error = ref('')
 
@@ -20,19 +31,47 @@ const filters = reactive({
 const limit = 100
 const offset = ref(0)
 
+const timezoneLabel = computed(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+
 function actionLabel(action: string): string {
-  return AUDIT_ACTION_LABELS[action] ?? action
+  return AUDIT_ACTION_LABELS[action] ?? action.replace(/\./g, ' ')
 }
 
-function formatWhen(value: string): string {
-  return new Date(value).toLocaleString()
+function targetTypeLabel(type: string | null): string {
+  if (!type) return ''
+  return AUDIT_TARGET_TYPE_LABELS[type] ?? type.replace(/_/g, ' ')
 }
 
-function metadataSummary(metadata: Record<string, unknown> | null): string {
-  if (!metadata) return ''
-  return Object.entries(metadata)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(' · ')
+function formatTarget(log: AuditLogRecord): { primary: string, secondary: string } {
+  if (log.targetLabel) {
+    return {
+      primary: log.targetLabel,
+      secondary: log.targetType ? targetTypeLabel(log.targetType) : '',
+    }
+  }
+
+  if (log.targetType === 'user' && typeof log.metadata?.email === 'string') {
+    return {
+      primary: log.metadata.email,
+      secondary: 'User account',
+    }
+  }
+
+  if (typeof log.metadata?.name === 'string') {
+    return {
+      primary: log.metadata.name,
+      secondary: log.targetType ? targetTypeLabel(log.targetType) : '',
+    }
+  }
+
+  if (log.targetType) {
+    return {
+      primary: targetTypeLabel(log.targetType),
+      secondary: log.targetId ? `ID ${log.targetId.slice(0, 8)}` : '',
+    }
+  }
+
+  return { primary: '', secondary: '' }
 }
 
 async function load() {
@@ -52,9 +91,14 @@ async function load() {
       query.to = end.toISOString()
     }
 
-    const data = await apiFetch<{ logs: AuditLogRecord[], total: number }>('/api/admin/audit', { query })
+    const data = await apiFetch<{
+      logs: AuditLogRecord[]
+      total: number
+      retentionDays: number
+    }>('/api/admin/audit', { query })
     logs.value = data.logs
     total.value = data.total
+    retentionDays.value = data.retentionDays
   }
   catch {
     error.value = 'Failed to load audit log'
@@ -88,11 +132,34 @@ await load()
     <div class="toolbar">
       <div>
         <h1 class="page-title">Audit Log</h1>
-        <p class="text-muted description">Security events across your organization. No secrets are stored here.</p>
+        <p class="text-muted description">
+          Security and access events for your organization. Passwords and secrets are never stored here.
+        </p>
       </div>
       <button type="button" class="btn" :disabled="loading" @click="load">
         Refresh
       </button>
+    </div>
+
+    <div class="info-card card">
+      <h2 class="info-title">About this log</h2>
+      <ul class="info-list">
+        <li>
+          <strong>Retention:</strong> entries are kept for {{ retentionDays }} days, then eligible for removal.
+        </li>
+        <li>
+          <strong>Time:</strong> timestamps use your browser's local timezone ({{ timezoneLabel }}).
+        </li>
+        <li>
+          <strong>Actor:</strong> the user column is who performed the action. "System" means no signed-in user (for example a failed login attempt).
+        </li>
+        <li>
+          <strong>Target:</strong> what was affected (a user account, vault, credential, and so on).
+        </li>
+        <li>
+          <strong>Details:</strong> extra context such as sign-in provider, changed fields, or failure reason. No secrets are included.
+        </li>
+      </ul>
     </div>
 
     <div class="filters card">
@@ -135,9 +202,9 @@ await load()
       <table class="audit-table">
         <thead>
           <tr>
-            <th>When</th>
+            <th>When (local)</th>
             <th>Action</th>
-            <th>User</th>
+            <th>Actor</th>
             <th>Target</th>
             <th>Result</th>
             <th>Details</th>
@@ -145,16 +212,22 @@ await load()
         </thead>
         <tbody>
           <tr v-for="log in logs" :key="log.id">
-            <td class="when">{{ formatWhen(log.createdAt) }}</td>
+            <td class="when">
+              <span>{{ formatAuditTimestamp(log.createdAt).local }}</span>
+            </td>
             <td>{{ actionLabel(log.action) }}</td>
             <td>
               <span v-if="log.userEmail">{{ log.userDisplayName || log.userEmail }}</span>
               <span v-else class="text-muted">System</span>
             </td>
             <td class="target">
-              <span v-if="log.targetType">{{ log.targetType }}</span>
-              <span v-if="log.targetId" class="text-muted target-id">{{ log.targetId.slice(0, 8) }}…</span>
-              <span v-if="!log.targetType && !log.targetId" class="text-muted">—</span>
+              <template v-if="formatTarget(log).primary">
+                <span>{{ formatTarget(log).primary }}</span>
+                <span v-if="formatTarget(log).secondary" class="text-muted target-sub">
+                  {{ formatTarget(log).secondary }}
+                </span>
+              </template>
+              <span v-else class="text-muted">None</span>
             </td>
             <td>
               <span :class="log.success ? 'badge success' : 'badge failed'">
@@ -162,7 +235,7 @@ await load()
               </span>
             </td>
             <td class="details text-muted">
-              {{ metadataSummary(log.metadata) || '—' }}
+              {{ formatAuditMetadata(log.metadata) || 'None' }}
             </td>
           </tr>
         </tbody>
@@ -199,6 +272,31 @@ await load()
 .description {
   margin: 0.35rem 0 0;
   font-size: 0.8125rem;
+  max-width: 40rem;
+}
+
+.info-card {
+  margin-bottom: 1rem;
+}
+
+.info-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.info-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.info-list strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .filters {
@@ -247,13 +345,14 @@ await load()
   white-space: nowrap;
 }
 
-.target-id {
+.target-sub {
   display: block;
   font-size: 0.75rem;
+  margin-top: 0.15rem;
 }
 
 .details {
-  max-width: 18rem;
+  max-width: 20rem;
   word-break: break-word;
 }
 

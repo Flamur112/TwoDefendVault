@@ -15,7 +15,9 @@ async function load() {
   try {
     const [statsRes, activityRes] = await Promise.all([
       apiFetch<{ stats: ClientStats }>(`/api/clients/${clientId.value}/stats`),
-      apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`),
+      apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`, {
+        query: { limit: 50 },
+      }),
     ])
     stats.value = statsRes.stats
     activity.value = activityRes.activity
@@ -66,7 +68,14 @@ await load()
     </div>
 
     <div class="card activity-section">
-      <ClientsActivityFeed :entries="activity" :loading="loading" title="Recent Activity" :retention-days="14" />
+      <ClientsActivityFeed
+        :entries="activity"
+        :loading="loading"
+        title="Recent Activity"
+        :retention-days="14"
+        show-filters
+        :initial-limit="10"
+      />
     </div>
   </div>
 </template>

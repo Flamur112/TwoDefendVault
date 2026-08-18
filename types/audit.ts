@@ -7,6 +7,7 @@ export interface AuditLogRecord {
   action: string
   targetType: string | null
   targetId: string | null
+  targetLabel: string | null
   ipAddress: string | null
   userAgent: string | null
   success: boolean

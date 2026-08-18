@@ -1,5 +1,5 @@
 import { requireAuth, getAccessibleVaults } from '../utils/authorize'
-import { mapClient } from '../utils/client-map'
+import { countUserFavorites, listUserFavoriteClients } from '../utils/client-favorites'
 import { activityCutoffIso } from '../utils/clients'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'
@@ -9,19 +9,19 @@ export default defineEventHandler(async (event) => {
 
   const supabase = getSupabaseAdmin()
   const orgId = user.orgId
-  const accessibleVaults = await getAccessibleVaults(user)
+  const accessibleVaults = await getAccessibleVaults(user, event)
   const vaultIds = accessibleVaults.map(vault => vault.id)
   const vaultMap = new Map(accessibleVaults.map(vault => [vault.id, vault]))
 
   const [
     clientCountRes,
-    favoriteCountRes,
-    favoritesRes,
+    favoriteCount,
+    favorites,
     activityRes,
   ] = await Promise.all([
     supabase.from('clients').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
-    supabase.from('clients').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('is_favorite', true),
-    supabase.from('clients').select('*').eq('org_id', orgId).eq('is_favorite', true).order('name').limit(12),
+    countUserFavorites(user.id, orgId),
+    listUserFavoriteClients(user.id, orgId, 12),
     supabase
       .from('client_activity')
       .select('id, action, metadata, created_at, client_id, clients!inner(name, org_id), users(display_name, email)')
@@ -60,16 +60,18 @@ export default defineEventHandler(async (event) => {
 
     credentialCount = countRes.count ?? 0
 
-    const clientIds = [...new Set(
-      accessibleVaults.map(vault => vault.client_id).filter((id): id is string => Boolean(id)),
+    const recentClientIds = [...new Set(
+      (itemsRes.data ?? [])
+        .map(item => vaultMap.get(item.vault_id)?.client_id)
+        .filter((id): id is string => Boolean(id)),
     )]
 
     let clientNameMap = new Map<string, string>()
-    if (clientIds.length > 0) {
+    if (recentClientIds.length > 0) {
       const { data: clientRows } = await supabase
         .from('clients')
         .select('id, name')
-        .in('id', clientIds)
+        .in('id', recentClientIds)
       clientNameMap = new Map((clientRows ?? []).map(row => [row.id, row.name]))
     }
 
@@ -98,10 +100,10 @@ export default defineEventHandler(async (event) => {
   return {
     stats: {
       clientCount: clientCountRes.count ?? 0,
-      favoriteCount: favoriteCountRes.count ?? 0,
+      favoriteCount,
       credentialCount,
     },
-    favorites: (favoritesRes.data ?? []).map(client => mapClient(client)),
+    favorites,
     recentCredentials,
     recentActivity: (activityRes.data ?? []).map(row => ({
       id: row.id,

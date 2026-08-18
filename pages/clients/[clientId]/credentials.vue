@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ClientVaultSummary } from '~/types/client'
+import type { ClientActivityEntry, ClientVaultSummary } from '~/types/client'
 import { ITEM_TYPE_LABELS, type VaultItemRecord, type VaultItemType } from '~/types/vault'
 
 const { user } = useSession()
@@ -17,6 +17,8 @@ const savingVault = ref(false)
 const addCredentialVaultId = ref<string | null>(null)
 const deletingVault = ref<ClientVaultSummary | null>(null)
 const deletingVaultInProgress = ref(false)
+const activity = ref<ClientActivityEntry[]>([])
+const loadingActivity = ref(false)
 const appSearch = useAppSearch()
 const route = useRoute()
 
@@ -79,7 +81,25 @@ async function load() {
   }
 }
 
+async function loadActivity() {
+  loadingActivity.value = true
+  try {
+    const data = await apiFetch<{ activity: ClientActivityEntry[] }>(
+      `/api/clients/${clientId.value}/activity`,
+      { query: { filter: 'credentials', limit: 30 } },
+    )
+    activity.value = data.activity
+  }
+  catch {
+    activity.value = []
+  }
+  finally {
+    loadingActivity.value = false
+  }
+}
+
 await load()
+loadActivity()
 
 watch([highlightItemId, loading], async () => {
   if (loading.value || !highlightItemId.value) return
@@ -105,6 +125,7 @@ async function createVault() {
     newVaultName.value = ''
     showNewVault.value = false
     await load()
+    loadActivity()
   }
   catch {
     error.value = 'Failed to create vault'
@@ -117,6 +138,7 @@ async function createVault() {
 function onCredentialSaved() {
   addCredentialVaultId.value = null
   load()
+  loadActivity()
 }
 
 async function confirmDeleteVault() {
@@ -127,6 +149,7 @@ async function confirmDeleteVault() {
     await $fetch(`/api/vaults/${deletingVault.value.id}`, { method: 'DELETE' })
     deletingVault.value = null
     await load()
+    loadActivity()
   }
   catch {
     error.value = 'Failed to delete vault'
@@ -213,6 +236,17 @@ async function confirmDeleteVault() {
           + Add to {{ vault.name }}
         </button>
       </section>
+    </div>
+
+    <div v-if="!loading" class="card activity-section">
+      <ClientsActivityFeed
+        :entries="activity"
+        :loading="loadingActivity"
+        title="Credential activity"
+        :retention-days="14"
+        default-filter="credentials"
+        :initial-limit="10"
+      />
     </div>
 
     <div v-if="showNewVault" class="modal-backdrop" @click.self="showNewVault = false">
@@ -396,5 +430,9 @@ async function confirmDeleteVault() {
   margin-bottom: 1rem;
   font-size: 0.875rem;
   color: var(--text-muted);
+}
+
+.activity-section {
+  margin-top: 1rem;
 }
 </style>

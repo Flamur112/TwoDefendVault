@@ -1,5 +1,5 @@
 import { requireRole } from '../../utils/authorize'
-import { mapAuditLogRow } from '../../utils/audit'
+import { AUDIT_RETENTION_DAYS, enrichAuditLogs, mapAuditLogRow } from '../../utils/audit'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
 const DEFAULT_LIMIT = 100
@@ -60,10 +60,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to load audit log' })
   }
 
+  const mapped = (data ?? []).map(row => mapAuditLogRow(row))
+  const logs = await enrichAuditLogs(mapped)
+
   return {
-    logs: (data ?? []).map(row => mapAuditLogRow(row)),
+    logs,
     total: count ?? 0,
     limit,
     offset,
+    retentionDays: AUDIT_RETENTION_DAYS,
   }
 })

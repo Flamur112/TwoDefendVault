@@ -129,8 +129,17 @@ async function decrypt() {
   loading.value = true
   error.value = ''
   try {
+    let encryptedData = props.item.encryptedData
+    if (!encryptedData) {
+      const apiFetch = useApiFetch()
+      const data = await apiFetch<{ item: VaultItemRecord }>(`/api/items/${props.item.id}`)
+      encryptedData = data.item.encryptedData
+    }
+    if (!encryptedData) {
+      throw new Error('Missing encrypted payload')
+    }
     const key = await loadKey()
-    decrypted.value = await decryptPayload(key, props.item.encryptedData)
+    decrypted.value = await decryptPayload(key, encryptedData)
   }
   catch {
     error.value = 'Failed to decrypt credential'

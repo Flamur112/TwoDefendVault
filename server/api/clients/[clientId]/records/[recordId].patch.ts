@@ -1,6 +1,7 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
 import { canEditClients, logClientActivity } from '../../../../utils/clients'
 import { mapClientRecord, normalizeMetadata } from '../../../../utils/client-records'
+import { requireProjectEdit } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
@@ -13,6 +14,22 @@ export default defineEventHandler(async (event) => {
   const { user } = await requireClientInOrg(event, clientId)
   if (!canEditClients(user.role)) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
+  }
+
+  const supabase = getSupabaseAdmin()
+  const { data: existing } = await supabase
+    .from('client_records')
+    .select('id, section, metadata')
+    .eq('id', recordId)
+    .eq('client_id', clientId)
+    .maybeSingle()
+
+  if (!existing) {
+    throw createError({ statusCode: 404, statusMessage: 'Record not found' })
+  }
+
+  if (existing.section === 'projects') {
+    requireProjectEdit(user, existing.metadata)
   }
 
   const body = await readBody(event)
@@ -32,7 +49,6 @@ export default defineEventHandler(async (event) => {
     updates.metadata = normalizeMetadata(body.metadata)
   }
 
-  const supabase = getSupabaseAdmin()
   const { data: record, error } = await supabase
     .from('client_records')
     .update(updates)
@@ -45,7 +61,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Record not found' })
   }
 
-  await logClientActivity(clientId, user.id, `${record.section}_updated`, { title: record.title })
+  await logClientActivity(clientId, user.id, `${record.section}_updated`, {
+    title: record.title,
+    recordId: record.id,
+  })
 
   return { record: mapClientRecord(record) }
 })

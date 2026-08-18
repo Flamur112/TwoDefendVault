@@ -1,6 +1,7 @@
 import { mapClient, requireClientInOrg } from '../../../utils/client-map'
 import { getSupabaseAdmin } from '../../../utils/supabase'
 import { canEditClients, logClientActivity } from '../../../utils/clients'
+import { isClientFavorite, setClientFavorite } from '../../../utils/client-favorites'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
@@ -31,30 +32,41 @@ export default defineEventHandler(async (event) => {
     updates.onboarded_at = body.onboardedAt || null
   }
 
+  let favoriteChanged = false
   if (body?.isFavorite !== undefined) {
-    updates.is_favorite = Boolean(body.isFavorite)
+    const wantFavorite = Boolean(body.isFavorite)
+    const currentlyFavorite = await isClientFavorite(user.id, clientId)
+    if (wantFavorite !== currentlyFavorite) {
+      await setClientFavorite(user.id, clientId, wantFavorite)
+      favoriteChanged = true
+    }
   }
 
   const supabase = getSupabaseAdmin()
-  const { data: updated, error } = await supabase
-    .from('clients')
-    .update(updates)
-    .eq('id', clientId)
-    .select('*')
-    .single()
+  const changedFields = Object.keys(updates).filter(k => k !== 'updated_at')
 
-  if (error || !updated) {
-    throw createError({ statusCode: 500, statusMessage: 'Failed to update client' })
+  let updated = client
+  if (changedFields.length > 0) {
+    const { data, error } = await supabase
+      .from('clients')
+      .update(updates)
+      .eq('id', clientId)
+      .select('*')
+      .single()
+
+    if (error || !data) {
+      throw createError({ statusCode: 500, statusMessage: 'Failed to update client' })
+    }
+    updated = data
   }
 
-  const changedFields = Object.keys(updates).filter(k => k !== 'updated_at')
-  const action = changedFields.length === 1 && changedFields[0] === 'is_favorite'
-    ? 'favorite_toggled'
-    : 'edited'
+  if (favoriteChanged || changedFields.length > 0) {
+    const action = favoriteChanged && changedFields.length === 0 ? 'favorite_toggled' : 'edited'
+    await logClientActivity(clientId, user.id, action, {
+      fields: favoriteChanged ? [...changedFields, 'favorite'] : changedFields,
+    })
+  }
 
-  await logClientActivity(clientId, user.id, action, {
-    fields: changedFields,
-  })
-
-  return { client: mapClient(updated) }
+  const isFavorite = await isClientFavorite(user.id, clientId)
+  return { client: mapClient(updated, { isFavorite }) }
 })

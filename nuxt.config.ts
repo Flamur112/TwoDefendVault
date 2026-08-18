@@ -7,7 +7,7 @@ function normalizeAppUrl(url: string | undefined): string {
 const appUrl = normalizeAppUrl(process.env.APP_URL)
 
 export default defineNuxtConfig({
-  modules: ['@netlify/nuxt', '@nuxtjs/supabase', 'nuxt-security'],
+  modules: ['@nuxtjs/supabase', 'nuxt-security'],
 
   // Avoid dev-only Vite race with routeRules + #app-manifest (nuxt/nuxt#33606).
   experimental: {
@@ -62,7 +62,7 @@ export default defineNuxtConfig({
       xFrameOptions: 'DENY',
     },
     rateLimiter: {
-      tokensPerInterval: 50,
+      tokensPerInterval: 120,
       interval: 'minute',
     },
   },
@@ -71,15 +71,19 @@ export default defineNuxtConfig({
     redirect: false,
   },
 
+  // SPA mode: pages render in the browser. Server only handles /api/* (much lighter on Netlify).
+  ssr: false,
+
   nitro: {
     preset: 'netlify',
     output: {
       publicDir: '.output/public',
     },
+    compressPublicAssets: true,
   },
 
   routeRules: {
-    '/api/**': { ssr: false },
+    '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/': { redirect: { to: '/dashboard', statusCode: 302 } },
     '/vault': { redirect: { to: '/clients', statusCode: 301 } },
   },

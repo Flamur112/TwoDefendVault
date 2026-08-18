@@ -1,6 +1,10 @@
-export default defineNuxtRouteMiddleware(async () => {
+export default defineNuxtRouteMiddleware(async (to) => {
+  if (!to.path.startsWith('/admin')) return
+
   const { user, fetchSession } = useSession()
-  await fetchSession()
+  if (!user.value) {
+    await fetchSession()
+  }
 
   if (!user.value) {
     return navigateTo('/login')

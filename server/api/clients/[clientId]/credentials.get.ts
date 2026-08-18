@@ -1,15 +1,14 @@
 import { requireClientInOrg } from '../../../utils/client-map'
-import { getAccessibleVaults } from '../../../utils/authorize'
+import { getAccessibleVaultIds } from '../../../utils/authorize'
 import { getSupabaseAdmin } from '../../../utils/supabase'
 
-function mapItem(item: {
+function mapListItem(item: {
   id: string
   vault_id: string
   item_type: string
   name: string
   url: string | null
   tags: string[] | null
-  encrypted_data: string
   created_at: string
   updated_at: string
 }) {
@@ -20,7 +19,6 @@ function mapItem(item: {
     name: item.name,
     url: item.url,
     tags: item.tags,
-    encryptedData: item.encrypted_data,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   }
@@ -33,8 +31,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { user } = await requireClientInOrg(event, clientId)
-  const accessible = await getAccessibleVaults(user)
-  const accessibleIds = new Set(accessible.map(vault => vault.id))
+  const accessibleIds = new Set(await getAccessibleVaultIds(user, event))
 
   const supabase = getSupabaseAdmin()
   const { data: vaults, error: vaultError } = await supabase
@@ -50,7 +47,7 @@ export default defineEventHandler(async (event) => {
   const filteredVaults = (vaults ?? []).filter(vault => accessibleIds.has(vault.id))
   const vaultIds = filteredVaults.map(vault => vault.id)
 
-  const itemsByVault: Record<string, ReturnType<typeof mapItem>[]> = {}
+  const itemsByVault: Record<string, ReturnType<typeof mapListItem>[]> = {}
   for (const vaultId of vaultIds) {
     itemsByVault[vaultId] = []
   }
@@ -58,7 +55,7 @@ export default defineEventHandler(async (event) => {
   if (vaultIds.length > 0) {
     const { data: items, error: itemsError } = await supabase
       .from('vault_items')
-      .select('id, vault_id, item_type, name, url, tags, encrypted_data, created_at, updated_at')
+      .select('id, vault_id, item_type, name, url, tags, created_at, updated_at')
       .in('vault_id', vaultIds)
       .order('name')
 
@@ -67,7 +64,7 @@ export default defineEventHandler(async (event) => {
     }
 
     for (const item of items ?? []) {
-      itemsByVault[item.vault_id]?.push(mapItem(item))
+      itemsByVault[item.vault_id]?.push(mapListItem(item))
     }
   }
 

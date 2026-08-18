@@ -8,19 +8,45 @@ export interface SessionUser {
 
 export function useSession() {
   const user = useState<SessionUser | null>('session-user', () => null)
+  const sessionLoaded = useState('session-loaded', () => false)
+  const sessionInflight = useState<Promise<SessionUser | null> | null>('session-inflight', () => null)
   const requestFetch = useRequestFetch()
 
-  async function fetchSession() {
-    const data = await requestFetch<{ user: SessionUser | null }>('/api/auth/me')
-    user.value = data.user
-    return data.user
+  async function fetchSession(force = false): Promise<SessionUser | null> {
+    if (!force && sessionLoaded.value) {
+      return user.value
+    }
+
+    if (!force && sessionInflight.value) {
+      return sessionInflight.value
+    }
+
+    sessionInflight.value = requestFetch<{ user: SessionUser | null }>('/api/auth/me')
+      .then((data) => {
+        user.value = data.user
+        sessionLoaded.value = true
+        return data.user
+      })
+      .finally(() => {
+        sessionInflight.value = null
+      })
+
+    return sessionInflight.value
   }
 
   async function logout() {
     const { clearKey } = useVaultKey()
     clearKey()
-    await requestFetch('/api/auth/logout', { method: 'POST' })
     user.value = null
+    sessionLoaded.value = false
+
+    try {
+      await requestFetch('/api/auth/logout', { method: 'POST' })
+    }
+    catch {
+      // Still redirect — cookie may already be cleared or session expired
+    }
+
     await navigateTo('/login')
   }
 

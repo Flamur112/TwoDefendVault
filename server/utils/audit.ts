@@ -2,6 +2,9 @@ import type { H3Event } from 'h3'
 import type { SessionUser } from './session'
 import { getSupabaseAdmin } from './supabase'
 
+/** Audit logs are retained for this many days (shown to admins; purge jobs should use the same value). */
+export const AUDIT_RETENTION_DAYS = 365
+
 const SENSITIVE_KEY = /password|secret|token|encrypted|credential|totp|key/i
 
 export interface AuditLogInput {
@@ -99,10 +102,66 @@ export function mapAuditLogRow(row: {
     action: row.action,
     targetType: row.target_type,
     targetId: row.target_id,
+    targetLabel: null as string | null,
     ipAddress: row.ip_address,
     userAgent: row.user_agent,
     success: row.success,
     metadata: row.metadata,
     createdAt: row.created_at,
   }
+}
+
+export async function enrichAuditLogs<T extends ReturnType<typeof mapAuditLogRow>>(
+  logs: T[],
+): Promise<T[]> {
+  if (logs.length === 0) return logs
+
+  const userIds = new Set<string>()
+  const vaultIds = new Set<string>()
+
+  for (const log of logs) {
+    if (log.targetType === 'user' && log.targetId) userIds.add(log.targetId)
+    if (log.targetType === 'vault' && log.targetId) vaultIds.add(log.targetId)
+  }
+
+  const supabase = getSupabaseAdmin()
+  const userMap = new Map<string, string>()
+  const vaultMap = new Map<string, string>()
+
+  if (userIds.size > 0) {
+    const { data } = await supabase
+      .from('users')
+      .select('id, email, display_name')
+      .in('id', [...userIds])
+    for (const u of data ?? []) {
+      userMap.set(u.id, u.display_name?.trim() || u.email)
+    }
+  }
+
+  if (vaultIds.size > 0) {
+    const { data } = await supabase
+      .from('vaults')
+      .select('id, name')
+      .in('id', [...vaultIds])
+    for (const v of data ?? []) {
+      vaultMap.set(v.id, v.name)
+    }
+  }
+
+  return logs.map((log) => {
+    let targetLabel: string | null = null
+
+    if (log.targetType === 'user' && log.targetId) {
+      targetLabel = userMap.get(log.targetId) ?? (typeof log.metadata?.email === 'string' ? log.metadata.email : null)
+    }
+    else if (log.targetType === 'vault') {
+      targetLabel = (log.targetId ? vaultMap.get(log.targetId) : null)
+        ?? (typeof log.metadata?.name === 'string' ? log.metadata.name : null)
+    }
+    else if (log.targetType === 'vault_item' && typeof log.metadata?.name === 'string') {
+      targetLabel = log.metadata.name
+    }
+
+    return { ...log, targetLabel }
+  })
 }

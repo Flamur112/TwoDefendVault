@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: ['auth', 'admin'] })
+definePageMeta({ middleware: 'auth' })
 
 interface AdminUser {
   id: string
@@ -99,6 +99,27 @@ async function createUser() {
     <p v-if="error" class="error">
       {{ error }}
     </p>
+
+    <section class="card guide">
+      <h2>How user management works</h2>
+      <ol class="guide-steps">
+        <li>
+          <strong>Add the user</strong> with their work email and role. They do not receive an invite email from the vault.
+        </li>
+        <li>
+          <strong>First sign-in:</strong> they choose "Sign in with Zoho" on the login page. Their account links automatically if the email matches.
+        </li>
+        <li>
+          <strong>Roles:</strong>
+          <em>Admin</em> can manage users and view the audit log;
+          <em>Member</em> can edit clients, credentials, and projects;
+          <em>Read-only</em> can view but not change data.
+        </li>
+        <li>
+          <strong>Deactivate</strong> when someone leaves. They cannot sign in again; their sessions are revoked immediately.
+        </li>
+      </ol>
+    </section>
 
     <section class="card">
       <h2>Add user</h2>
@@ -210,6 +231,31 @@ async function createUser() {
 .card h2 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
+}
+
+.guide {
+  margin-bottom: 1rem;
+}
+
+.guide-steps {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  line-height: 1.45;
+}
+
+.guide-steps strong {
+  color: var(--text);
+}
+
+.guide-steps em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .hint {

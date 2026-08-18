@@ -1,4 +1,5 @@
 import { isClientSection } from '../../utils/client-sections'
+import { metadataFromRow } from '../../utils/projects'
 
 export function parseSectionParam(value: string | undefined): string {
   if (!value || !isClientSection(value)) {
@@ -17,13 +18,7 @@ export function mapClientRecord(row: {
   created_at: string
   updated_at: string
 }) {
-  const metadata: Record<string, string> = {}
-  if (row.metadata && typeof row.metadata === 'object') {
-    for (const [key, val] of Object.entries(row.metadata)) {
-      if (typeof val === 'string') metadata[key] = val
-      else if (val != null) metadata[key] = String(val)
-    }
-  }
+  const metadata = metadataFromRow(row.metadata)
 
   return {
     id: row.id,

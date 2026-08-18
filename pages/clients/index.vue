@@ -3,9 +3,8 @@ definePageMeta({ middleware: 'auth' })
 
 import type { ClientRecord } from '~/types/client'
 
-const { user, fetchSession } = useSession()
+const { user } = useSession()
 const apiFetch = useApiFetch()
-await fetchSession()
 
 const appSearch = useAppSearch()
 useAppSearchPlaceholder('Search clients...')

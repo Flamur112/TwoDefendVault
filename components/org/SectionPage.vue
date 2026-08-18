@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OrgSectionRecord } from '~/types/client'
-import { CLIENT_SECTIONS, type ClientSection } from '~/utils/client-sections'
+import { CLIENT_SECTIONS, sectionFieldDisplayKey, type ClientSection } from '~/utils/client-sections'
 
 const props = defineProps<{ section: ClientSection }>()
 
@@ -58,6 +58,18 @@ function fieldValue(record: OrgSectionRecord, key: string): string | undefined {
   return val || undefined
 }
 
+function fieldDisplayValue(record: OrgSectionRecord, field: (typeof config.value.fields)[number]): string | undefined {
+  if (field.type === 'user') {
+    const displayKey = sectionFieldDisplayKey(field)
+    if (displayKey) {
+      const name = record.metadata[displayKey]
+      if (name) return name
+    }
+    return undefined
+  }
+  return fieldValue(record, field.key)
+}
+
 function clientSectionLink(record: OrgSectionRecord): string {
   return `/clients/${record.clientId}/${sectionPath.value}`
 }
@@ -111,16 +123,16 @@ function clientSectionLink(record: OrgSectionRecord): string {
         </div>
         <dl class="record-fields">
           <template v-for="field in config.fields" :key="field.key">
-            <div v-if="fieldValue(record, field.key)">
+            <div v-if="fieldDisplayValue(record, field)">
               <dt>{{ field.label }}</dt>
               <dd>
                 <a
                   v-if="field.type === 'url'"
-                  :href="fieldValue(record, field.key)"
+                  :href="fieldDisplayValue(record, field)"
                   target="_blank"
                   rel="noopener"
-                >{{ fieldValue(record, field.key) }}</a>
-                <span v-else>{{ fieldValue(record, field.key) }}</span>
+                >{{ fieldDisplayValue(record, field) }}</a>
+                <span v-else>{{ fieldDisplayValue(record, field) }}</span>
               </dd>
             </div>
           </template>

@@ -57,7 +57,9 @@ watch(client, (c) => {
 async function loadActivity() {
   loadingActivity.value = true
   try {
-    const data = await apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`)
+    const data = await apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`, {
+      query: { limit: 50 },
+    })
     activity.value = data.activity
   }
   finally {
@@ -177,7 +179,14 @@ async function save() {
     </div>
 
     <div class="card activity-section">
-      <ClientsActivityFeed :entries="activity" :loading="loadingActivity" title="Activity Log" :retention-days="14" />
+      <ClientsActivityFeed
+        :entries="activity"
+        :loading="loadingActivity"
+        title="Activity Log"
+        :retention-days="14"
+        show-filters
+        :initial-limit="10"
+      />
     </div>
   </div>
 </template>

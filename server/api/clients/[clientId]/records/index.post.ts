@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to create record' })
   }
 
-  await logClientActivity(clientId, user.id, `${section}_added`, { title })
+  await logClientActivity(clientId, user.id, `${section}_added`, { title, recordId: record.id })
 
   return { record: mapClientRecord(record) }
 })

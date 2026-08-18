@@ -2,10 +2,13 @@
 definePageMeta({ layout: 'blank' })
 
 const route = useRoute()
-const { user, fetchSession, logout } = useSession()
+const { user, fetchSession } = useSession()
 
-// Sync session before render so SSR and client markup match (cookies forwarded via useRequestFetch)
 await fetchSession()
+
+if (user.value) {
+  await navigateTo('/dashboard', { replace: true })
+}
 
 const errorMessage = computed(() => {
   if (route.query.error === 'deactivated') {
@@ -14,109 +17,73 @@ const errorMessage = computed(() => {
   return ''
 })
 
-const signingOut = ref(false)
-
-async function signOutAndRetry() {
-  signingOut.value = true
-  try {
-    await logout()
-  }
-  finally {
-    signingOut.value = false
-  }
+function startZohoSignIn() {
+  window.location.replace('/api/auth/zoho/init')
 }
 </script>
 
 <template>
   <main class="login-page">
     <div class="login-card card">
-      <img src="/logo.svg" alt="TwoDefend" class="logo" width="48" height="48">
-      <h1>TwoDefend</h1>
+      <img src="/logo.svg" alt="" class="logo" width="64" height="64">
+      <h1 class="title">TwoDefend Vault</h1>
 
-      <template v-if="user">
-        <p class="text-muted">You are already signed in.</p>
-        <p class="signed-in-as">{{ user.displayName || user.email }}</p>
-        <div class="actions">
-          <NuxtLink to="/dashboard" class="btn btn-primary">Continue to Dashboard</NuxtLink>
-          <button type="button" class="btn" :disabled="signingOut" @click="signOutAndRetry">
-            {{ signingOut ? 'Signing out…' : 'Sign out' }}
-          </button>
-        </div>
-        <p class="hint text-muted">
-          To switch Zoho accounts, sign out first, then use the button below.
-        </p>
-        <a href="/api/auth/zoho/init" class="btn sign-in-secondary">Sign in with Zoho</a>
-      </template>
+      <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
 
-      <template v-else>
-        <p class="text-muted">Sign in to access the credential vault.</p>
-        <p v-if="errorMessage" class="error">
-          {{ errorMessage }}
-        </p>
-        <a href="/api/auth/zoho/init" class="btn btn-primary sign-in">
-          Sign in with Zoho
-        </a>
-      </template>
+      <button type="button" class="btn btn-primary sign-in" @click="startZohoSignIn">
+        Sign in with Zoho
+      </button>
     </div>
   </main>
 </template>
 
 <style scoped>
 .login-page {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 1rem;
-  background: var(--bg);
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(107, 140, 255, 0.14), transparent 40%),
+    radial-gradient(circle at 80% 85%, rgba(167, 139, 250, 0.1), transparent 38%),
+    var(--bg);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
+  padding: 2.5rem 2rem 2rem;
   text-align: center;
-  padding: 2rem;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
 }
 
 .logo {
-  margin-bottom: 1rem;
-  border-radius: 10px;
+  border-radius: 16px;
+  margin: 0 auto 1.25rem;
+  display: block;
 }
 
-h1 {
-  margin: 0 0 0.5rem;
+.title {
+  margin: 0 0 2rem;
   font-size: 1.5rem;
-  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
-.signed-in-as {
-  font-weight: 600;
-  margin: 0.5rem 0 1rem;
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.sign-in,
-.sign-in-secondary {
+.sign-in {
   display: inline-flex;
-  margin-top: 1rem;
   width: 100%;
   justify-content: center;
-  text-decoration: none;
-}
-
-.hint {
-  font-size: 0.8125rem;
-  margin: 1rem 0 0;
+  padding: 0.65rem 1rem;
 }
 
 .error {
   color: var(--danger);
   font-size: 0.875rem;
-  margin-top: 0.75rem;
+  margin: 0 0 1rem;
+  line-height: 1.45;
 }
 </style>

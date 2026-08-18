@@ -1,5 +1,6 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
-import { canEditClients, logClientActivity } from '../../../../utils/clients'
+import { canDeleteClients, canEditClients, logClientActivity } from '../../../../utils/clients'
+import { deleteDocumentImages, extractDocumentImageIds } from '../../../../utils/document-images'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
@@ -9,7 +10,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Client and record ID required' })
   }
 
-  const { user } = await requireClientInOrg(event, clientId)
+  const { user, client } = await requireClientInOrg(event, clientId)
   if (!canEditClients(user.role)) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
@@ -17,13 +18,17 @@ export default defineEventHandler(async (event) => {
   const supabase = getSupabaseAdmin()
   const { data: existing } = await supabase
     .from('client_records')
-    .select('id, section, title')
+    .select('id, section, title, notes, metadata')
     .eq('id', recordId)
     .eq('client_id', clientId)
     .maybeSingle()
 
   if (!existing) {
     throw createError({ statusCode: 404, statusMessage: 'Record not found' })
+  }
+
+  if (existing.section === 'projects' && !canDeleteClients(user.role)) {
+    throw createError({ statusCode: 403, statusMessage: 'Only admins can delete projects' })
   }
 
   const { error } = await supabase
@@ -36,7 +41,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to delete record' })
   }
 
-  await logClientActivity(clientId, user.id, `${existing.section}_deleted`, { title: existing.title })
+  if (existing.section === 'documents' && existing.notes) {
+    const imageIds = extractDocumentImageIds(existing.notes)
+    await deleteDocumentImages(client.org_id, clientId, imageIds)
+  }
+
+  await logClientActivity(clientId, user.id, `${existing.section}_deleted`, {
+    title: existing.title,
+    recordId: existing.id,
+  })
 
   return { success: true }
 })
