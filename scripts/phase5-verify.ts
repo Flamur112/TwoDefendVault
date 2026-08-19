@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
-import { deriveUserVaultKeyMaterial } from '../server/utils/vault-key.ts'
+import { deriveLegacyUserVaultKeyMaterial, deriveOrgVaultKeyMaterial } from '../server/utils/vault-key.ts'
 import { decryptPayload, deriveKey, encryptPayload, hexToArrayBuffer } from '../utils/crypto.ts'
 
 function loadEnv(): void {
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     testVaultId = createdVault.id
   }
 
-  const keyMaterialHex = deriveUserVaultKeyMaterial(vaultKeyMaterial, userA.id, userA.org_id)
+  const keyMaterialHex = deriveOrgVaultKeyMaterial(vaultKeyMaterial, userA.org_id)
   const cryptoKey = await deriveKey(hexToArrayBuffer(keyMaterialHex))
 
   const encryptedData = await encryptPayload(cryptoKey, {
@@ -135,19 +135,19 @@ async function main(): Promise<void> {
     .maybeSingle()
   const idorItemBlocked = wrongItem === null
 
-  // Cross-user: if 2+ users, item access for user B crypto key should fail decrypt if they got data
-  let crossUserDecryptFails = true
+  // Same org: another user can decrypt with the org-wide vault key
+  let crossUserDecryptWorks = true
   if (users.length >= 2) {
     const userB = users[1]!
-    const keyB = await deriveKey(hexToArrayBuffer(
-      deriveUserVaultKeyMaterial(vaultKeyMaterial, userB.id, userB.org_id),
+    const orgKeyB = await deriveKey(hexToArrayBuffer(
+      deriveOrgVaultKeyMaterial(vaultKeyMaterial, userB.org_id),
     ))
     try {
-      await decryptPayload(keyB, fetched!.encrypted_data)
-      crossUserDecryptFails = false
+      const decryptedB = await decryptPayload(orgKeyB, fetched!.encrypted_data)
+      crossUserDecryptWorks = decryptedB.password === TEST_PASSWORD
     }
     catch {
-      crossUserDecryptFails = true
+      crossUserDecryptWorks = false
     }
   }
 
@@ -160,10 +160,10 @@ async function main(): Promise<void> {
   console.log('Plaintext absent from DB row:   ', noPlaintextInDb ? 'PASS' : 'FAIL')
   console.log('Unknown vault ID (no row):      ', idorVaultBlocked ? 'PASS' : 'FAIL')
   console.log('Unknown item ID (no row):       ', idorItemBlocked ? 'PASS' : 'FAIL')
-  console.log('Cross-user decrypt fails:       ', crossUserDecryptFails ? 'PASS' : 'FAIL', users.length < 2 ? '(single user — skipped)' : '')
+  console.log('Cross-user org decrypt works: ', crossUserDecryptWorks ? 'PASS' : 'FAIL', users.length < 2 ? '(single user — skipped)' : '')
   console.log('')
 
-  const allOk = roundTripOk && noPlaintextInDb && idorVaultBlocked && idorItemBlocked && crossUserDecryptFails
+  const allOk = roundTripOk && noPlaintextInDb && idorVaultBlocked && idorItemBlocked && crossUserDecryptWorks
   if (!allOk) process.exit(1)
   console.log('All automated Phase 5 checks passed.')
   console.log('')

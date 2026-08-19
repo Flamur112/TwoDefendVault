@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import type { ClientSectionRecord } from '~/types/client'
+import {
+  buildDocumentMetadata,
+  parseDocumentAttachments,
+  type DocumentAttachment,
+} from '~/utils/document-attachments'
 import { DOCUMENT_TYPES, documentExcerpt, getDocumentType } from '~/utils/documents'
 
 const { user } = useSession()
@@ -24,6 +29,7 @@ const form = reactive({
   title: '',
   docType: 'Info guide',
   content: '',
+  attachments: [] as DocumentAttachment[],
 })
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
@@ -67,6 +73,7 @@ function resetForm() {
   form.title = ''
   form.docType = 'Info guide'
   form.content = ''
+  form.attachments = []
 }
 
 function openCreate() {
@@ -91,7 +98,7 @@ async function save() {
           section: 'documents',
           title: form.title.trim(),
           notes: form.content.trim() || null,
-          metadata: { docType: form.docType },
+          metadata: buildDocumentMetadata(form.docType, form.attachments),
         },
       },
     )
@@ -184,6 +191,10 @@ async function confirmDelete() {
               :client-id="clientId"
             />
           </label>
+          <DocumentsDocumentAttachments
+            v-model="form.attachments"
+            :client-id="clientId"
+          />
           <div class="modal-actions">
             <button type="button" class="btn" @click="closeForm">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="saving">

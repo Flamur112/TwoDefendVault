@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
-import { deriveUserVaultKeyMaterial } from '../server/utils/vault-key.ts'
+import { deriveLegacyUserVaultKeyMaterial, deriveOrgVaultKeyMaterial } from '../server/utils/vault-key.ts'
 import {
   decryptPayload,
   deriveKey,
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     vaultId = vault.id
   }
 
-  const keyMaterialHex = deriveUserVaultKeyMaterial(vaultKeyMaterial, user.id, user.org_id)
+  const keyMaterialHex = deriveOrgVaultKeyMaterial(vaultKeyMaterial, org.id)
   const cryptoKey = await deriveKey(hexToArrayBuffer(keyMaterialHex))
 
   const payload = {

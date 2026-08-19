@@ -1,8 +1,10 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
 import { canEditClients, logClientActivity } from '../../../../utils/clients'
 import { mapClientRecord, normalizeMetadata } from '../../../../utils/client-records'
+import { deleteClientFiles } from '../../../../utils/client-files'
 import { requireProjectEdit } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
+import { parseDocumentAttachments } from '../../../../../utils/document-attachments'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
@@ -11,7 +13,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Client and record ID required' })
   }
 
-  const { user } = await requireClientInOrg(event, clientId)
+  const { user, client } = await requireClientInOrg(event, clientId)
   if (!canEditClients(user.role)) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
@@ -19,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const supabase = getSupabaseAdmin()
   const { data: existing } = await supabase
     .from('client_records')
-    .select('id, section, metadata')
+    .select('id, section, title, notes, metadata')
     .eq('id', recordId)
     .eq('client_id', clientId)
     .maybeSingle()
@@ -47,6 +49,20 @@ export default defineEventHandler(async (event) => {
 
   if (body?.metadata !== undefined) {
     updates.metadata = normalizeMetadata(body.metadata)
+  }
+
+  if (existing.section === 'documents' && body?.metadata !== undefined) {
+    const previousAttachments = parseDocumentAttachmentsFromRow(
+      existing.metadata as Record<string, unknown> | null,
+    )
+    const nextAttachments = parseDocumentAttachments(normalizeMetadata(body.metadata))
+    const nextIds = new Set(nextAttachments.map(a => a.id))
+    const removedIds = previousAttachments
+      .filter(a => !nextIds.has(a.id))
+      .map(a => a.id)
+    if (removedIds.length > 0) {
+      await deleteClientFiles(client.org_id, clientId, removedIds)
+    }
   }
 
   const { data: record, error } = await supabase

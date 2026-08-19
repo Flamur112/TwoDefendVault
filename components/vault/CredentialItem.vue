@@ -4,12 +4,23 @@
     class="credential"
     :class="{ open: expanded, highlighted }"
   >
-    <button type="button" class="credential-header" @click="toggle">
-      <span class="chevron" aria-hidden="true">{{ expanded ? '▾' : '▸' }}</span>
-      <span class="name">{{ item.name }}</span>
-      <span class="type">{{ typeLabel }}</span>
-      <span v-if="item.url" class="url">{{ item.url }}</span>
-    </button>
+    <div class="credential-top">
+      <button type="button" class="credential-header" @click="toggle">
+        <span class="chevron" aria-hidden="true">{{ expanded ? '▾' : '▸' }}</span>
+        <span class="name">{{ item.name }}</span>
+        <span class="type">{{ typeLabel }}</span>
+        <span v-if="item.url" class="url">{{ item.url }}</span>
+      </button>
+
+      <div v-if="canWrite" class="credential-actions" @click.stop>
+        <button type="button" class="btn btn-sm" title="Edit credential" @click="emit('edit')">
+          Edit
+        </button>
+        <button type="button" class="btn btn-sm btn-danger" title="Delete credential" @click="emit('delete')">
+          Delete
+        </button>
+      </div>
+    </div>
 
     <div v-if="expanded" class="credential-body">
       <p v-if="loading" class="text-muted">Decrypting…</p>
@@ -84,7 +95,7 @@
 
 <script setup lang="ts">
 import type { VaultItemPayload } from '~/utils/crypto'
-import { decryptPayload } from '~/utils/crypto'
+import type { VaultDecryptKeyMaterials } from '~/composables/useVaultKey'
 import type { VaultItemRecord, VaultItemType } from '~/types/vault'
 import { ITEM_TYPE_LABELS } from '~/types/vault'
 
@@ -92,9 +103,15 @@ const props = defineProps<{
   item: VaultItemRecord
   initialExpanded?: boolean
   highlighted?: boolean
+  canWrite?: boolean
 }>()
 
-const { loadKey } = useVaultKey()
+const emit = defineEmits<{
+  edit: []
+  delete: []
+}>()
+
+const { decryptVaultPayload, error: keyError } = useVaultKey()
 
 const expanded = ref(props.initialExpanded ?? false)
 const loading = ref(false)
@@ -129,20 +146,29 @@ async function decrypt() {
   loading.value = true
   error.value = ''
   try {
-    let encryptedData = props.item.encryptedData
-    if (!encryptedData) {
-      const apiFetch = useApiFetch()
-      const data = await apiFetch<{ item: VaultItemRecord }>(`/api/items/${props.item.id}`)
-      encryptedData = data.item.encryptedData
-    }
+    const apiFetch = useApiFetch()
+    const data = await apiFetch<{
+      item: VaultItemRecord
+      decryptKeys?: VaultDecryptKeyMaterials
+    }>(`/api/items/${props.item.id}`)
+
+    const encryptedData = data.item.encryptedData ?? props.item.encryptedData
     if (!encryptedData) {
       throw new Error('Missing encrypted payload')
     }
-    const key = await loadKey()
-    decrypted.value = await decryptPayload(key, encryptedData)
+
+    decrypted.value = await decryptVaultPayload(encryptedData, data.decryptKeys)
   }
-  catch {
-    error.value = 'Failed to decrypt credential'
+  catch (e: unknown) {
+    if (keyError.value) {
+      error.value = keyError.value
+    }
+    else if (e instanceof Error && e.message.includes('Missing encrypted')) {
+      error.value = 'Credential data is missing'
+    }
+    else {
+      error.value = 'Failed to decrypt credential — try signing out and back in'
+    }
   }
   finally {
     loading.value = false
@@ -182,6 +208,24 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.credential-top {
+  display: flex;
+  align-items: stretch;
+}
+
+.credential-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.65rem 0 0;
+  flex-shrink: 0;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+}
+
 .credential.open {
   border-color: rgba(79, 110, 247, 0.45);
   background: var(--card);
@@ -197,7 +241,8 @@ onMounted(() => {
   grid-template-columns: 1.25rem 1fr auto auto;
   gap: 0.75rem;
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0.75rem 1rem;
   border: none;
   background: transparent;

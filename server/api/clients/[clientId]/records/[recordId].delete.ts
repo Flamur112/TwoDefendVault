@@ -1,7 +1,9 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
 import { canDeleteClients, canEditClients, logClientActivity } from '../../../../utils/clients'
+import { deleteClientFiles } from '../../../../utils/client-files'
 import { deleteDocumentImages, extractDocumentImageIds } from '../../../../utils/document-images'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
+import { parseDocumentAttachmentsFromRow } from '../../../../../utils/document-attachments'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
@@ -41,9 +43,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to delete record' })
   }
 
-  if (existing.section === 'documents' && existing.notes) {
-    const imageIds = extractDocumentImageIds(existing.notes)
-    await deleteDocumentImages(client.org_id, clientId, imageIds)
+  if (existing.section === 'documents') {
+    if (existing.notes) {
+      const imageIds = extractDocumentImageIds(existing.notes)
+      await deleteDocumentImages(client.org_id, clientId, imageIds)
+    }
+
+    const attachmentIds = parseDocumentAttachmentsFromRow(
+      existing.metadata as Record<string, unknown> | null,
+    ).map(a => a.id)
+    await deleteClientFiles(client.org_id, clientId, attachmentIds)
   }
 
   await logClientActivity(clientId, user.id, `${existing.section}_deleted`, {

@@ -15,6 +15,9 @@ const showNewVault = ref(false)
 const newVaultName = ref('')
 const savingVault = ref(false)
 const addCredentialVaultId = ref<string | null>(null)
+const editingCredential = ref<{ id: string, vaultId: string } | null>(null)
+const deletingCredential = ref<VaultItemRecord | null>(null)
+const deletingCredentialInProgress = ref(false)
 const deletingVault = ref<ClientVaultSummary | null>(null)
 const deletingVaultInProgress = ref(false)
 const activity = ref<ClientActivityEntry[]>([])
@@ -141,6 +144,34 @@ function onCredentialSaved() {
   loadActivity()
 }
 
+function onCredentialEdited() {
+  editingCredential.value = null
+  load()
+  loadActivity()
+}
+
+function startEditCredential(item: VaultItemRecord) {
+  editingCredential.value = { id: item.id, vaultId: item.vaultId }
+}
+
+async function confirmDeleteCredential() {
+  if (!deletingCredential.value) return
+  deletingCredentialInProgress.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/items/${deletingCredential.value.id}`, { method: 'DELETE' })
+    deletingCredential.value = null
+    await load()
+    loadActivity()
+  }
+  catch {
+    error.value = 'Failed to delete credential'
+  }
+  finally {
+    deletingCredentialInProgress.value = false
+  }
+}
+
 async function confirmDeleteVault() {
   if (!deletingVault.value) return
   deletingVaultInProgress.value = true
@@ -223,8 +254,11 @@ async function confirmDeleteVault() {
             v-for="item in items"
             :key="item.id"
             :item="item"
+            :can-write="canWrite"
             :initial-expanded="isHighlighted(item.id)"
             :highlighted="isHighlighted(item.id)"
+            @edit="startEditCredential(item)"
+            @delete="deletingCredential = item"
           />
         </div>
         <button
@@ -279,6 +313,38 @@ async function confirmDeleteVault() {
         <button type="button" class="btn close-form" @click="addCredentialVaultId = null">Close</button>
       </div>
     </div>
+    <div v-if="editingCredential" class="modal-backdrop" @click.self="editingCredential = null">
+      <div class="modal card modal-wide">
+        <VaultItemForm
+          :vault-id="editingCredential.vaultId"
+          :item-id="editingCredential.id"
+          @saved="onCredentialEdited"
+        />
+        <button type="button" class="btn close-form" @click="editingCredential = null">Close</button>
+      </div>
+    </div>
+
+    <div v-if="deletingCredential" class="modal-backdrop" @click.self="deletingCredential = null">
+      <div class="modal card">
+        <h3>Delete credential</h3>
+        <p>
+          Delete <strong>{{ deletingCredential.name }}</strong>?
+          This cannot be undone.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn" @click="deletingCredential = null">Cancel</button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            :disabled="deletingCredentialInProgress"
+            @click="confirmDeleteCredential"
+          >
+            {{ deletingCredentialInProgress ? 'Deleting…' : 'Delete' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="deletingVault" class="modal-backdrop" @click.self="deletingVault = null">
       <div class="modal card">
         <h3>Delete Vault</h3>

@@ -20,6 +20,24 @@ export function hexToArrayBuffer(hex: string): ArrayBuffer {
   return bytes.buffer
 }
 
+export function normalizeEncryptedData(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) throw new Error('Missing encrypted payload')
+    return trimmed
+  }
+  throw new Error('Missing encrypted payload')
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
+}
+
 export async function deriveKey(keyMaterial: ArrayBuffer): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey('raw', keyMaterial, 'HKDF', false, ['deriveKey'])
   return crypto.subtle.deriveKey(
@@ -38,7 +56,7 @@ export async function encrypt(key: CryptoKey, plaintext: string): Promise<string
   const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength)
   combined.set(iv, 0)
   combined.set(new Uint8Array(ciphertext), iv.byteLength)
-  return btoa(String.fromCharCode(...combined))
+  return bytesToBase64(combined)
 }
 
 export async function decrypt(key: CryptoKey, b64: string): Promise<string> {
@@ -54,5 +72,20 @@ export async function encryptPayload(key: CryptoKey, payload: VaultItemPayload):
 }
 
 export async function decryptPayload(key: CryptoKey, b64: string): Promise<VaultItemPayload> {
-  return JSON.parse(await decrypt(key, b64)) as VaultItemPayload
+  return JSON.parse(await decrypt(key, normalizeEncryptedData(b64))) as VaultItemPayload
+}
+
+export async function decryptPayloadWithFallback(
+  primaryKey: CryptoKey,
+  b64: string,
+  legacyKey?: CryptoKey | null,
+): Promise<VaultItemPayload> {
+  const normalized = normalizeEncryptedData(b64)
+  try {
+    return await decryptPayload(primaryKey, normalized)
+  }
+  catch (primaryError) {
+    if (!legacyKey) throw primaryError
+    return await decryptPayload(legacyKey, normalized)
+  }
 }

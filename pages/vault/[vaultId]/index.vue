@@ -11,6 +11,9 @@ const vault = ref<VaultSummary | null>(null)
 const items = ref<VaultItemRecord[]>([])
 const loading = ref(true)
 const error = ref('')
+const editingItem = ref<VaultItemRecord | null>(null)
+const deletingItem = ref<VaultItemRecord | null>(null)
+const deletingItemInProgress = ref(false)
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
 
@@ -47,6 +50,28 @@ async function load() {
 }
 
 await load()
+
+function onItemSaved() {
+  editingItem.value = null
+  load()
+}
+
+async function confirmDeleteItem() {
+  if (!deletingItem.value) return
+  deletingItemInProgress.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/items/${deletingItem.value.id}`, { method: 'DELETE' })
+    deletingItem.value = null
+    await load()
+  }
+  catch {
+    error.value = 'Failed to delete credential'
+  }
+  finally {
+    deletingItemInProgress.value = false
+  }
+}
 </script>
 
 <template>
@@ -65,9 +90,45 @@ await load()
         <h2>Items</h2>
         <p v-if="items.length === 0" class="text-muted">No items yet.</p>
         <div v-else class="items">
-          <VaultItem v-for="item in items" :key="item.id" :item="item" />
+          <VaultItem
+            v-for="item in items"
+            :key="item.id"
+            :item="item"
+            :can-write="canWrite"
+            @edit="editingItem = item"
+            @delete="deletingItem = item"
+          />
         </div>
       </section>
+
+      <div v-if="editingItem" class="modal-backdrop" @click.self="editingItem = null">
+        <div class="modal card modal-wide">
+          <VaultItemForm
+            :vault-id="vaultId"
+            :item-id="editingItem.id"
+            @saved="onItemSaved"
+          />
+          <button type="button" class="btn close-form" @click="editingItem = null">Close</button>
+        </div>
+      </div>
+
+      <div v-if="deletingItem" class="modal-backdrop" @click.self="deletingItem = null">
+        <div class="modal card">
+          <h3>Delete credential</h3>
+          <p>Delete <strong>{{ deletingItem.name }}</strong>? This cannot be undone.</p>
+          <div class="modal-actions">
+            <button type="button" class="btn" @click="deletingItem = null">Cancel</button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              :disabled="deletingItemInProgress"
+              @click="confirmDeleteItem"
+            >
+              {{ deletingItemInProgress ? 'Deleting…' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -96,4 +157,37 @@ await load()
 }
 
 .error { color: var(--danger); }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal-wide {
+  max-width: 520px;
+}
+
+.modal h3 { margin: 0 0 1rem; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.close-form {
+  margin-top: 0.75rem;
+  width: 100%;
+}
 </style>

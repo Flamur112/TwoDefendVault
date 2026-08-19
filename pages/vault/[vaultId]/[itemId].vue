@@ -1,22 +1,29 @@
 <script setup lang="ts">
 import type { VaultItemPayload } from '~/utils/crypto'
+import type { VaultDecryptKeyMaterials } from '~/composables/useVaultKey'
 import type { VaultItemRecord, VaultSummary } from '~/types/vault'
-import { decryptPayload } from '~/utils/crypto'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '~/types/vault'
 
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
+const router = useRouter()
 const vaultId = computed(() => route.params.vaultId as string)
 const itemId = computed(() => route.params.itemId as string)
+
+const { user } = useSession()
+const canWrite = computed(() => user.value?.role !== 'readonly')
 
 const vault = ref<VaultSummary | null>(null)
 const item = ref<VaultItemRecord | null>(null)
 const decrypted = ref<VaultItemPayload | null>(null)
 const loading = ref(true)
 const error = ref('')
+const showEdit = ref(false)
+const showDeleteConfirm = ref(false)
+const deleting = ref(false)
 
-const { loadKey } = useVaultKey()
+const { decryptVaultPayload, loadKey } = useVaultKey()
 
 const showTotpCode = ref(false)
 
@@ -49,7 +56,7 @@ async function load() {
   try {
     const [vaultRes, itemRes] = await Promise.all([
       $fetch<{ vault: VaultSummary }>(`/api/vaults/${vaultId.value}`),
-      $fetch<{ item: VaultItemRecord }>(`/api/items/${itemId.value}`),
+      $fetch<{ item: VaultItemRecord, decryptKeys: VaultDecryptKeyMaterials }>(`/api/items/${itemId.value}`),
     ])
 
     if (itemRes.item.vaultId !== vaultId.value) {
@@ -60,14 +67,14 @@ async function load() {
     vault.value = vaultRes.vault
     item.value = itemRes.item
 
-    const key = await loadKey()
-    decrypted.value = await decryptPayload(key, itemRes.item.encryptedData)
+    await loadKey()
+    decrypted.value = await decryptVaultPayload(itemRes.item.encryptedData, itemRes.decryptKeys)
   }
   catch (e: unknown) {
     const err = e as { statusCode?: number }
     error.value = err.statusCode === 403
       ? 'You do not have access to this item.'
-      : 'Failed to load or decrypt item'
+      : 'Failed to load or decrypt credential — try signing out and back in'
   }
   finally {
     loading.value = false
@@ -75,17 +82,49 @@ async function load() {
 }
 
 await load()
+
+function onItemSaved() {
+  showEdit.value = false
+  load()
+}
+
+async function confirmDelete() {
+  if (!item.value) return
+  deleting.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/items/${item.value.id}`, { method: 'DELETE' })
+    await router.push(backLink.value)
+  }
+  catch {
+    error.value = 'Failed to delete credential'
+  }
+  finally {
+    deleting.value = false
+    showDeleteConfirm.value = false
+  }
+}
 </script>
 
 <template>
   <div class="item-detail">
     <header class="header">
       <NuxtLink :to="backLink" class="back text-muted">{{ backLabel }}</NuxtLink>
-      <h1 class="page-title">{{ item?.name ?? 'Item' }}</h1>
-      <p v-if="item" class="meta text-muted">
-        {{ typeLabel }}
-        <span v-if="item.url"> · {{ item.url }}</span>
-      </p>
+      <div class="title-row">
+        <div>
+          <h1 class="page-title">{{ item?.name ?? 'Item' }}</h1>
+          <p v-if="item" class="meta text-muted">
+            {{ typeLabel }}
+            <span v-if="item.url"> · {{ item.url }}</span>
+          </p>
+        </div>
+        <div v-if="canWrite && item" class="header-actions">
+          <button type="button" class="btn btn-sm" @click="showEdit = true">Edit</button>
+          <button type="button" class="btn btn-sm btn-danger" @click="showDeleteConfirm = true">
+            Delete
+          </button>
+        </div>
+      </div>
     </header>
 
     <p v-if="loading" class="text-muted">Loading…</p>
@@ -128,6 +167,30 @@ await load()
         </div>
       </div>
     </section>
+
+    <div v-if="showEdit && item" class="modal-backdrop" @click.self="showEdit = false">
+      <div class="modal card modal-wide">
+        <VaultItemForm
+          :vault-id="vaultId"
+          :item-id="item.id"
+          @saved="onItemSaved"
+        />
+        <button type="button" class="btn close-form" @click="showEdit = false">Close</button>
+      </div>
+    </div>
+
+    <div v-if="showDeleteConfirm && item" class="modal-backdrop" @click.self="showDeleteConfirm = false">
+      <div class="modal card">
+        <h3>Delete credential</h3>
+        <p>Delete <strong>{{ item.name }}</strong>? This cannot be undone.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn" @click="showDeleteConfirm = false">Cancel</button>
+          <button type="button" class="btn btn-danger" :disabled="deleting" @click="confirmDelete">
+            {{ deleting ? 'Deleting…' : 'Delete' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -140,6 +203,24 @@ await load()
 }
 
 .back:hover { color: var(--primary); }
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+}
 
 .meta { margin-top: 0.25rem; font-size: 0.875rem; }
 
@@ -207,5 +288,38 @@ await load()
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.35rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal-wide {
+  max-width: 520px;
+}
+
+.modal h3 { margin: 0 0 1rem; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.close-form {
+  margin-top: 0.75rem;
+  width: 100%;
 }
 </style>

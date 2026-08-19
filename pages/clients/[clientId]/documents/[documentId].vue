@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import type { ClientActivityEntry, ClientSectionRecord } from '~/types/client'
+import {
+  buildDocumentMetadata,
+  parseDocumentAttachments,
+  type DocumentAttachment,
+} from '~/utils/document-attachments'
 import { DOCUMENT_TYPES, getDocumentType } from '~/utils/documents'
 import { formatClientActivityEntry } from '~/utils/client-activity'
 import { formatProjectTimestamp, formatProjectWhen } from '~/utils/projects'
@@ -30,14 +35,20 @@ const form = reactive({
   title: '',
   docType: 'Info guide',
   content: '',
+  attachments: [] as DocumentAttachment[],
 })
 
 const backLink = computed(() => `/clients/${clientId.value}/documents`)
+
+const viewAttachments = computed(() =>
+  record.value ? parseDocumentAttachments(record.value.metadata) : [],
+)
 
 function syncFormFromRecord(doc: DocumentRecord) {
   form.title = doc.title
   form.docType = getDocumentType(doc.metadata)
   form.content = doc.notes ?? ''
+  form.attachments = parseDocumentAttachments(doc.metadata)
 }
 
 async function loadRecord() {
@@ -117,7 +128,7 @@ async function save() {
         body: {
           title: form.title.trim(),
           notes: form.content.trim() || null,
-          metadata: { docType: form.docType },
+          metadata: buildDocumentMetadata(form.docType, form.attachments, record.value.metadata),
         },
       },
     )
@@ -236,6 +247,10 @@ watch(documentId, async () => {
               :client-id="clientId"
             />
           </label>
+          <DocumentsDocumentAttachments
+            v-model="form.attachments"
+            :client-id="clientId"
+          />
           <p v-if="saveError" class="error">{{ saveError }}</p>
           <div class="form-actions">
             <button type="button" class="btn" @click="cancelEdit">Cancel</button>
@@ -246,11 +261,20 @@ watch(documentId, async () => {
         </form>
 
         <div v-else class="document-body">
-          <p v-if="!record.notes?.trim() && record.metadata.url" class="legacy-note text-muted">
+          <DocumentsDocumentAttachments
+            v-if="viewAttachments.length > 0"
+            :model-value="viewAttachments"
+            :client-id="clientId"
+            readonly
+          />
+          <p v-if="!record.notes?.trim() && !viewAttachments.length && record.metadata.url" class="legacy-note text-muted">
             This older entry only has an external link.
             <a :href="record.metadata.url" target="_blank" rel="noopener">Open link</a>
           </p>
-          <UiMarkdownContent :source="record.notes || ''" />
+          <UiMarkdownContent v-if="record.notes?.trim()" :source="record.notes" />
+          <p v-else-if="!viewAttachments.length && !record.metadata.url" class="text-muted empty-body">
+            No content yet.
+          </p>
         </div>
       </main>
 
@@ -375,6 +399,11 @@ watch(documentId, async () => {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.empty-body {
+  margin: 0;
+  font-size: 0.875rem;
 }
 
 .legacy-note {

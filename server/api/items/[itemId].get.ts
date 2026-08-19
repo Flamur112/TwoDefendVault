@@ -1,6 +1,7 @@
 import { requireItemAccess } from '../../utils/authorize'
 import { auditFromEvent } from '../../utils/audit'
 import { getSupabaseAdmin } from '../../utils/supabase'
+import { buildItemDecryptKeyMaterials } from '../../utils/vault-key'
 
 export default defineEventHandler(async (event) => {
   const itemId = getRouterParam(event, 'itemId')
@@ -9,11 +10,16 @@ export default defineEventHandler(async (event) => {
   }
 
   const { user } = await requireItemAccess(event, itemId, 'read')
+  const config = useRuntimeConfig()
+
+  if (!config.vaultKeyMaterial) {
+    throw createError({ statusCode: 503, statusMessage: 'Vault key material not configured' })
+  }
 
   const supabase = getSupabaseAdmin()
   const { data: item, error } = await supabase
     .from('vault_items')
-    .select('id, vault_id, item_type, name, url, tags, encrypted_data, created_at, updated_at')
+    .select('id, vault_id, item_type, name, url, tags, encrypted_data, created_by, created_at, updated_at')
     .eq('id', itemId)
     .single()
 
@@ -29,6 +35,13 @@ export default defineEventHandler(async (event) => {
     metadata: { name: item.name, vaultId: item.vault_id, itemType: item.item_type },
   })
 
+  const decryptKeys = buildItemDecryptKeyMaterials(
+    config.vaultKeyMaterial,
+    user.orgId,
+    user.id,
+    item.created_by,
+  )
+
   return {
     item: {
       id: item.id,
@@ -38,8 +51,10 @@ export default defineEventHandler(async (event) => {
       url: item.url,
       tags: item.tags,
       encryptedData: item.encrypted_data,
+      createdBy: item.created_by,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     },
+    decryptKeys,
   }
 })

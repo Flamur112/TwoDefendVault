@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { ClientSectionRecord } from '~/types/client'
+import { parseDocumentAttachments } from '~/utils/document-attachments'
 import { documentExcerpt, getDocumentType } from '~/utils/documents'
 import { formatProjectWhen } from '~/utils/projects'
 
-defineProps<{
+const props = defineProps<{
   record: ClientSectionRecord
   clientId: string
   canWrite: boolean
@@ -12,6 +13,8 @@ defineProps<{
 defineEmits<{
   delete: []
 }>()
+
+const attachmentCount = computed(() => parseDocumentAttachments(props.record.metadata).length)
 </script>
 
 <template>
@@ -25,7 +28,10 @@ defineEmits<{
             <span class="type-badge">{{ getDocumentType(record.metadata) }}</span>
           </span>
           <span class="summary-meta text-muted">
-            Updated {{ formatProjectWhen(record.updatedAt) }} · {{ documentExcerpt(record.notes) }}
+            Updated {{ formatProjectWhen(record.updatedAt) }}
+            <span v-if="attachmentCount > 0"> · {{ attachmentCount }} file{{ attachmentCount === 1 ? '' : 's' }}</span>
+            <span v-if="record.notes?.trim()"> · {{ documentExcerpt(record.notes) }}</span>
+            <span v-else-if="!attachmentCount"> · {{ documentExcerpt(record.notes) }}</span>
           </span>
         </span>
         <span class="summary-action-label">Open</span>
