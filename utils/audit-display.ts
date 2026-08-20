@@ -23,6 +23,8 @@ const REASON_LABELS: Record<string, string> = {
   deactivated: 'Account deactivated',
   invalid_state: 'Invalid login state',
   missing_code_or_state: 'Missing OAuth response',
+  not_invited: 'Not authorized',
+  domain_not_allowed: 'Email domain blocked',
 }
 
 const PROVIDER_LABELS: Record<string, string> = {

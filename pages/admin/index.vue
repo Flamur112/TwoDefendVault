@@ -27,6 +27,13 @@ const { user } = useSession()
           </dd>
         </div>
         <div>
+          <dt>Sign-in activity</dt>
+          <dd>
+            See who signed in successfully, who was blocked, and from which IP address.
+            Useful for spotting unauthorized login attempts after enabling SSO restrictions.
+          </dd>
+        </div>
+        <div>
           <dt>Audit log</dt>
           <dd>
             Review sign-ins, credential access, and admin changes. Entries are kept for
@@ -40,6 +47,10 @@ const { user } = useSession()
       <NuxtLink to="/admin/users" class="admin-card card">
         <h2>Users</h2>
         <p class="text-muted">Provision employees, assign roles, deactivate accounts</p>
+      </NuxtLink>
+      <NuxtLink to="/admin/sign-ins" class="admin-card card">
+        <h2>Sign-in Activity</h2>
+        <p class="text-muted">Successful sign-ins and blocked attempts with IP addresses</p>
       </NuxtLink>
       <NuxtLink to="/admin/audit" class="admin-card card">
         <h2>Audit Log</h2>

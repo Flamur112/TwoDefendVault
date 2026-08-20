@@ -207,6 +207,7 @@ await load()
             <th>Actor</th>
             <th>Target</th>
             <th>Result</th>
+            <th>IP address</th>
             <th>Details</th>
           </tr>
         </thead>
@@ -234,6 +235,7 @@ await load()
                 {{ log.success ? 'Success' : 'Failed' }}
               </span>
             </td>
+            <td class="mono">{{ log.ipAddress || '—' }}</td>
             <td class="details text-muted">
               {{ formatAuditMetadata(log.metadata) || 'None' }}
             </td>
@@ -354,6 +356,12 @@ await load()
 .details {
   max-width: 20rem;
   word-break: break-word;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .badge {

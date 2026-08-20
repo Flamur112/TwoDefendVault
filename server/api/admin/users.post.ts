@@ -1,4 +1,5 @@
 import { requireRole } from '../../utils/authorize'
+import { assertEmailDomainAllowed } from '../../utils/auth-access'
 import { auditFromEvent } from '../../utils/audit'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
@@ -14,6 +15,16 @@ export default defineEventHandler(async (event) => {
 
   if (!email || !email.includes('@')) {
     throw createError({ statusCode: 400, statusMessage: 'Valid email is required' })
+  }
+
+  try {
+    assertEmailDomainAllowed(email)
+  }
+  catch {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Email domain is not allowed for this organization',
+    })
   }
 
   if (!VALID_ROLES.includes(role)) {
@@ -64,6 +75,9 @@ export default defineEventHandler(async (event) => {
       role: user.role,
       isActive: user.is_active,
       createdAt: user.created_at,
+      hasSignedIn: false,
+      lastLoginAt: null,
+      lastLoginIp: null,
     },
   }
 })

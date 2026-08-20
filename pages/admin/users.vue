@@ -8,6 +8,9 @@ interface AdminUser {
   role: 'admin' | 'member' | 'readonly'
   isActive: boolean
   createdAt: string
+  hasSignedIn: boolean
+  lastLoginAt: string | null
+  lastLoginIp: string | null
 }
 
 const { user: currentUser } = useSession()
@@ -148,6 +151,10 @@ async function createUser() {
 
     <section class="card">
       <h2>Users</h2>
+      <p class="hint">
+        Provisioned users who have never signed in show "Never". Blocked login attempts from unknown emails appear under
+        <NuxtLink to="/admin/sign-ins">Sign-in Activity</NuxtLink>.
+      </p>
       <p v-if="loading">
         Loading…
       </p>
@@ -157,6 +164,8 @@ async function createUser() {
             <th>Email</th>
             <th>Name</th>
             <th>Role</th>
+            <th>Sign-in</th>
+            <th>Last IP</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -182,6 +191,14 @@ async function createUser() {
                 </option>
               </select>
             </td>
+            <td>
+              <span v-if="u.hasSignedIn" class="signed-in">Signed in</span>
+              <span v-else class="text-muted">Never</span>
+              <span v-if="u.lastLoginAt" class="last-login text-muted">
+                {{ new Date(u.lastLoginAt).toLocaleString() }}
+              </span>
+            </td>
+            <td class="mono">{{ u.lastLoginIp || '—' }}</td>
             <td>
               <span :class="u.isActive ? 'active' : 'inactive'">
                 {{ u.isActive ? 'Active' : 'Deactivated' }}
@@ -293,6 +310,26 @@ async function createUser() {
 
 .active { color: var(--success); }
 .inactive { color: var(--danger); }
+
+.signed-in {
+  color: var(--success);
+  display: block;
+}
+
+.last-login {
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.hint a {
+  color: var(--primary);
+}
 
 .self-label {
   color: var(--text-muted);

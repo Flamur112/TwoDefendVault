@@ -1,4 +1,5 @@
 import type { AuthenticatedIdentity } from './identity/types'
+import { assertEmailDomainAllowed, LoginAccessError } from './auth-access'
 import { getSupabaseAdmin } from './supabase'
 
 export interface ResolvedUser {
@@ -86,6 +87,8 @@ export async function resolveUserFromIdentity(
   identity: AuthenticatedIdentity,
   orgSlug: string,
 ): Promise<ResolvedUser> {
+  assertEmailDomainAllowed(identity.email)
+
   const supabase = getSupabaseAdmin()
   const orgId = await getOrganizationId(orgSlug)
 
@@ -114,28 +117,10 @@ export async function resolveUserFromIdentity(
     return loadActiveUser(existingByEmail.id)
   }
 
-  const { count } = await supabase
-    .from('users')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-
-  const role = (count ?? 0) === 0 ? 'admin' : 'member'
-
-  const { data: newUser, error: userError } = await supabase
-    .from('users')
-    .insert({
-      org_id: orgId,
-      email: identity.email,
-      display_name: identity.displayName ?? null,
-      role,
-    })
-    .select('id')
-    .single()
-
-  if (userError || !newUser) {
-    throw createError({ statusCode: 500, statusMessage: 'Failed to create user' })
-  }
-
-  await linkIdentity(newUser.id, identity)
-  return loadActiveUser(newUser.id)
+  throw new LoginAccessError(
+    'not_invited',
+    'Your account is not authorized. Ask an administrator to add you in Admin → Users.',
+  )
 }
+
+export { LoginAccessError }
