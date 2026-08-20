@@ -3,6 +3,7 @@ import { getSessionUser } from '../utils/session'
 const PUBLIC_API_PREFIXES = [
   '/api/auth/zoho/init',
   '/api/auth/callback',
+  '/api/internal/retention-purge',
 ]
 
 export default defineEventHandler(async (event) => {

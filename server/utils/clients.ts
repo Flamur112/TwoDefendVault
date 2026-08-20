@@ -1,27 +1,7 @@
 import { getSupabaseAdmin } from './supabase'
+import { maybeRunRetentionPurge } from './retention-purge'
 
-/** Activity shown in feeds; older rows purged periodically */
-export const ACTIVITY_RETENTION_DAYS = 14
-
-let lastActivityPurgeAt = 0
-const PURGE_INTERVAL_MS = 60 * 60 * 1000 // at most once per hour
-
-export function activityCutoffIso(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - ACTIVITY_RETENTION_DAYS)
-  return d.toISOString()
-}
-
-async function maybePurgeExpiredActivity(): Promise<void> {
-  if (Date.now() - lastActivityPurgeAt < PURGE_INTERVAL_MS) return
-  lastActivityPurgeAt = Date.now()
-
-  const supabase = getSupabaseAdmin()
-  await supabase
-    .from('client_activity')
-    .delete()
-    .lt('created_at', activityCutoffIso())
-}
+export { ACTIVITY_RETENTION_DAYS, activityCutoffIso } from './retention-purge'
 
 export async function logClientActivity(
   clientId: string,
@@ -37,8 +17,7 @@ export async function logClientActivity(
     metadata: metadata ?? null,
   })
 
-  // Non-blocking cleanup; throttled to once per hour
-  maybePurgeExpiredActivity().catch(() => {})
+  maybeRunRetentionPurge()
 }
 
 export function slugifyClientName(name: string): string {

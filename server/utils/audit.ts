@@ -1,9 +1,9 @@
 import type { H3Event } from 'h3'
 import type { SessionUser } from './session'
+import { AUDIT_RETENTION_DAYS } from './retention-purge'
 import { getSupabaseAdmin } from './supabase'
 
-/** Audit logs are retained for this many days (shown to admins; purge jobs should use the same value). */
-export const AUDIT_RETENTION_DAYS = 365
+export { AUDIT_RETENTION_DAYS }
 
 const SENSITIVE_KEY = /password|secret|token|encrypted|credential|totp|key/i
 

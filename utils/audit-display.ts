@@ -1,5 +1,9 @@
-/** Audit logs are kept for this many days (displayed to admins; purge job can use same constant). */
-export const AUDIT_RETENTION_DAYS = 365
+/** Audit logs are kept for this many days (displayed to admins; purge job uses the same value). */
+export {
+  ACTIVITY_RETENTION_DAYS,
+  AUDIT_RETENTION_DAYS,
+  SESSION_RETENTION_DAYS,
+} from '~/utils/retention'
 
 export const AUDIT_TARGET_TYPE_LABELS: Record<string, string> = {
   user: 'User account',
@@ -13,6 +17,8 @@ export const AUDIT_METADATA_LABELS: Record<string, string> = {
   reason: 'Reason',
   email: 'Email',
   role: 'Role',
+  scope: 'Scope',
+  selfService: 'Self service',
   name: 'Name',
   vaultId: 'Vault ID',
   itemType: 'Credential type',
@@ -25,6 +31,10 @@ const REASON_LABELS: Record<string, string> = {
   missing_code_or_state: 'Missing OAuth response',
   not_invited: 'Not authorized',
   domain_not_allowed: 'Email domain blocked',
+}
+
+const SCOPE_LABELS: Record<string, string> = {
+  other_devices: 'Other devices',
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -47,6 +57,8 @@ function formatAuditMetadataValue(key: string, value: unknown): string {
   const str = String(value)
   if (key === 'provider') return PROVIDER_LABELS[str] ?? str
   if (key === 'reason') return REASON_LABELS[str] ?? str.replace(/_/g, ' ')
+  if (key === 'scope') return SCOPE_LABELS[str] ?? str.replace(/_/g, ' ')
+  if (key === 'selfService') return str === 'true' ? 'Yes' : 'No'
   if (key === 'itemType') {
     const labels: Record<string, string> = {
       login: 'Login',

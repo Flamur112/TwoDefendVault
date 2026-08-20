@@ -50,9 +50,15 @@ export function useSession() {
     await navigateTo('/login')
   }
 
+  function setSessionUser(next: SessionUser) {
+    user.value = next
+  }
+
   return {
     user: readonly(user),
     fetchSession,
+    refreshSession: () => fetchSession(true),
+    setSessionUser,
     logout,
   }
 }

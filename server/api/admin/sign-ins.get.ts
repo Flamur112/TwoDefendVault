@@ -1,5 +1,6 @@
 import { requireRole } from '../../utils/authorize'
 import { mapAuditLogRow } from '../../utils/audit'
+import { maybeRunRetentionPurge } from '../../utils/retention-purge'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
 const AUTH_ACTIONS = ['auth.login', 'auth.login_failed'] as const
@@ -8,6 +9,7 @@ const MAX_LIMIT = 200
 
 export default defineEventHandler(async (event) => {
   const admin = await requireRole(event, ['admin'])
+  maybeRunRetentionPurge()
   const query = getQuery(event)
 
   let limit = DEFAULT_LIMIT

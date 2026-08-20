@@ -1,11 +1,13 @@
 import { requireAuth, getAccessibleVaults } from '../utils/authorize'
 import { countUserFavorites, listUserFavoriteClients } from '../utils/client-favorites'
 import { activityCutoffIso } from '../utils/clients'
+import { maybeRunRetentionPurge } from '../utils/retention-purge'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
+  maybeRunRetentionPurge()
 
   const supabase = getSupabaseAdmin()
   const orgId = user.orgId
