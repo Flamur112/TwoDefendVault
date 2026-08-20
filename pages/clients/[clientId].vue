@@ -31,6 +31,7 @@ async function loadClient() {
 }
 
 await loadClient()
+watch(clientId, loadClient)
 
 provide('clientContext', {
   client: readonly(client),
@@ -46,8 +47,13 @@ provide('clientContext', {
     <template v-else-if="client">
       <header class="client-header">
         <div class="header-left">
-          <img v-if="client.logoUrl" :src="client.logoUrl" :alt="client.name" class="logo">
-          <span v-else class="logo-fallback">{{ client.name.slice(0, 2).toUpperCase() }}</span>
+          <ClientsClientLogo
+            :src="client.logoUrl"
+            :alt="client.name"
+            :size="56"
+            :cache-key="client.updatedAt"
+            class="header-logo"
+          />
           <div>
             <h1 class="page-title">{{ client.name }}</h1>
             <p v-if="client.industry" class="text-muted subtitle">{{ client.industry }}</p>
@@ -55,7 +61,7 @@ provide('clientContext', {
         </div>
       </header>
       <ClientsClientTabs :client-id="clientIdValue" />
-      <NuxtPage />
+      <NuxtPage keepalive :page-key="route => route.path" />
     </template>
   </div>
 </template>
@@ -71,20 +77,9 @@ provide('clientContext', {
   gap: 1rem;
 }
 
-.logo, .logo-fallback {
-  width: 56px;
-  height: 56px;
+.header-logo :deep(.client-logo),
+.header-logo :deep(.client-logo-fallback) {
   border-radius: 10px;
-  flex-shrink: 0;
-}
-
-.logo-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
 }
 
 .subtitle {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { ClientActivityEntry, ClientRecord } from '~/types/client'
+import type { ClientRecord } from '~/types/client'
+import { uploadClientLogo } from '~/utils/upload-client-logo'
 
 const { user } = useSession()
 const ctx = inject<{
@@ -11,13 +12,14 @@ const ctx = inject<{
 const client = ctx.client
 const clientId = ctx.clientId
 const reload = ctx.reload
-const apiFetch = useApiFetch()
+const { activity, loading: loadingActivity, load: loadActivity, invalidate: invalidateActivity } = useClientActivity(clientId)
 
-const activity = ref<ClientActivityEntry[]>([])
-const loadingActivity = ref(true)
 const saving = ref(false)
 const error = ref('')
 const saved = ref(false)
+const logoUploading = ref(false)
+const logoError = ref('')
+const logoInput = ref<HTMLInputElement | null>(null)
 
 const form = reactive({
   name: '',
@@ -31,7 +33,6 @@ const form = reactive({
   country: '',
   postalCode: '',
   notes: '',
-  logoUrl: '',
   isFavorite: false,
 })
 
@@ -50,24 +51,12 @@ watch(client, (c) => {
   form.country = c.country ?? ''
   form.postalCode = c.postalCode ?? ''
   form.notes = c.notes ?? ''
-  form.logoUrl = c.logoUrl ?? ''
   form.isFavorite = c.isFavorite
 }, { immediate: true })
 
-async function loadActivity() {
-  loadingActivity.value = true
-  try {
-    const data = await apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`, {
-      query: { limit: 50 },
-    })
-    activity.value = data.activity
-  }
-  finally {
-    loadingActivity.value = false
-  }
-}
-
-await loadActivity()
+onMounted(() => {
+  loadActivity()
+})
 
 async function save() {
   if (!canWrite.value) return
@@ -89,19 +78,63 @@ async function save() {
         country: form.country || null,
         postalCode: form.postalCode || null,
         notes: form.notes || null,
-        logoUrl: form.logoUrl || null,
         isFavorite: form.isFavorite,
       },
     })
     saved.value = true
     await reload()
-    await loadActivity()
+    invalidateActivity()
+    loadActivity(true)
   }
   catch {
     error.value = 'Failed to save'
   }
   finally {
     saving.value = false
+  }
+}
+
+function openLogoPicker() {
+  logoInput.value?.click()
+}
+
+async function onLogoSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !canWrite.value) return
+
+  logoUploading.value = true
+  logoError.value = ''
+  try {
+    await uploadClientLogo(clientId.value, file)
+    await reload()
+    invalidateActivity()
+    loadActivity(true)
+  }
+  catch (e: unknown) {
+    logoError.value = e instanceof Error ? e.message : 'Failed to upload logo'
+  }
+  finally {
+    logoUploading.value = false
+  }
+}
+
+async function removeLogo() {
+  if (!canWrite.value || !client.value?.logoUrl) return
+  logoUploading.value = true
+  logoError.value = ''
+  try {
+    await $fetch(`/api/clients/${clientId.value}/logo`, { method: 'DELETE' })
+    await reload()
+    invalidateActivity()
+    loadActivity(true)
+  }
+  catch {
+    logoError.value = 'Failed to remove logo'
+  }
+  finally {
+    logoUploading.value = false
   }
 }
 </script>
@@ -111,11 +144,42 @@ async function save() {
     <form v-if="canWrite" class="card form" @submit.prevent="save">
       <h3>Client Details</h3>
 
+      <div class="logo-field">
+        <span class="logo-label">Logo</span>
+        <div class="logo-row">
+          <ClientsClientLogo
+            :src="client.logoUrl"
+            :alt="client.name"
+            :size="64"
+            :cache-key="client.updatedAt"
+          />
+          <div class="logo-actions">
+            <input
+              ref="logoInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              hidden
+              @change="onLogoSelected"
+            >
+            <button type="button" class="btn btn-sm" :disabled="logoUploading" @click="openLogoPicker">
+              {{ logoUploading ? 'Uploading…' : client.logoUrl ? 'Replace logo' : 'Upload logo' }}
+            </button>
+            <button
+              v-if="client.logoUrl"
+              type="button"
+              class="btn btn-sm"
+              :disabled="logoUploading"
+              @click="removeLogo"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+        <p class="text-muted logo-hint">PNG or JPEG, resized to 256px and compressed to about 64 KB.</p>
+        <p v-if="logoError" class="error">{{ logoError }}</p>
+      </div>
+
       <div class="form-grid">
-        <label>
-          Logo URL
-          <input v-model="form.logoUrl" type="url" placeholder="https://…">
-        </label>
         <label>
           Client name
           <input v-model="form.name" type="text" required>
@@ -195,6 +259,34 @@ async function save() {
 .form h3 {
   margin: 0 0 1rem;
   font-size: 0.9375rem;
+}
+
+.logo-field {
+  margin-bottom: 1rem;
+}
+
+.logo-label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 0.45rem;
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.logo-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
 }
 
 .form-grid {

@@ -2,8 +2,12 @@
   <div class="client-row card">
     <NuxtLink :to="`/clients/${client.id}`" class="client-link">
       <div class="logo-wrap">
-        <img v-if="client.logoUrl" :src="client.logoUrl" :alt="client.name" class="logo">
-        <span v-else class="logo-fallback">{{ initials }}</span>
+        <ClientsClientLogo
+          :src="client.logoUrl"
+          :alt="client.name"
+          :size="40"
+          :cache-key="client.updatedAt"
+        />
       </div>
       <div class="info">
         <div class="name-row">
@@ -59,10 +63,6 @@ const emit = defineEmits<{
 
 const saving = ref(false)
 
-const initials = computed(() =>
-  props.client.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-)
-
 async function toggleFavorite() {
   saving.value = true
   try {
@@ -100,26 +100,6 @@ async function toggleFavorite() {
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-}
-
-.logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  object-fit: cover;
-}
-
-.logo-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.75rem;
 }
 
 .info {

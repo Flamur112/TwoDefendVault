@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import type { ClientActivityEntry, ClientVaultSummary } from '~/types/client'
+import type { ClientVaultSummary } from '~/types/client'
 import { ITEM_TYPE_LABELS, type VaultItemRecord, type VaultItemType } from '~/types/vault'
 
 const { user } = useSession()
 const ctx = inject<{ clientId: Ref<string> }>('clientContext')!
 const clientId = ctx.clientId
 const apiFetch = useApiFetch()
+const {
+  activity,
+  loading: loadingActivity,
+  load: loadActivity,
+  invalidate: invalidateActivity,
+} = useClientActivity(clientId, { filter: 'credentials', limit: 30 })
 
 const vaults = ref<ClientVaultSummary[]>([])
 const vaultItems = ref<Record<string, VaultItemRecord[]>>({})
@@ -20,8 +26,6 @@ const deletingCredential = ref<VaultItemRecord | null>(null)
 const deletingCredentialInProgress = ref(false)
 const deletingVault = ref<ClientVaultSummary | null>(null)
 const deletingVaultInProgress = ref(false)
-const activity = ref<ClientActivityEntry[]>([])
-const loadingActivity = ref(false)
 const appSearch = useAppSearch()
 const route = useRoute()
 
@@ -84,25 +88,15 @@ async function load() {
   }
 }
 
-async function loadActivity() {
-  loadingActivity.value = true
-  try {
-    const data = await apiFetch<{ activity: ClientActivityEntry[] }>(
-      `/api/clients/${clientId.value}/activity`,
-      { query: { filter: 'credentials', limit: 30 } },
-    )
-    activity.value = data.activity
-  }
-  catch {
-    activity.value = []
-  }
-  finally {
-    loadingActivity.value = false
-  }
-}
-
 await load()
-loadActivity()
+onMounted(() => {
+  loadActivity()
+})
+
+function refreshActivity() {
+  invalidateActivity()
+  loadActivity(true)
+}
 
 watch([highlightItemId, loading], async () => {
   if (loading.value || !highlightItemId.value) return
@@ -128,7 +122,7 @@ async function createVault() {
     newVaultName.value = ''
     showNewVault.value = false
     await load()
-    loadActivity()
+    refreshActivity()
   }
   catch {
     error.value = 'Failed to create vault'
@@ -141,13 +135,13 @@ async function createVault() {
 function onCredentialSaved() {
   addCredentialVaultId.value = null
   load()
-  loadActivity()
+  refreshActivity()
 }
 
 function onCredentialEdited() {
   editingCredential.value = null
   load()
-  loadActivity()
+  refreshActivity()
 }
 
 function startEditCredential(item: VaultItemRecord) {
@@ -162,7 +156,7 @@ async function confirmDeleteCredential() {
     await $fetch(`/api/items/${deletingCredential.value.id}`, { method: 'DELETE' })
     deletingCredential.value = null
     await load()
-    loadActivity()
+    refreshActivity()
   }
   catch {
     error.value = 'Failed to delete credential'
@@ -180,7 +174,7 @@ async function confirmDeleteVault() {
     await $fetch(`/api/vaults/${deletingVault.value.id}`, { method: 'DELETE' })
     deletingVault.value = null
     await load()
-    loadActivity()
+    refreshActivity()
   }
   catch {
     error.value = 'Failed to delete vault'

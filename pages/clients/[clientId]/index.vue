@@ -1,33 +1,30 @@
 <script setup lang="ts">
-import type { ClientActivityEntry, ClientStats } from '~/types/client'
+import type { ClientStats } from '~/types/client'
 
 const ctx = inject<{ client: Ref<{ name: string, industry: string | null, website: string | null, phone: string | null, onboardedAt: string | null } | null>, clientId: Ref<string> }>('clientContext')!
 const client = ctx.client
 const clientId = ctx.clientId
 const apiFetch = useApiFetch()
+const { activity, loading: loadingActivity, load: loadActivity } = useClientActivity(clientId, { limit: 50 })
 
 const stats = ref<ClientStats | null>(null)
-const activity = ref<ClientActivityEntry[]>([])
-const loading = ref(true)
+const loadingStats = ref(true)
 
-async function load() {
-  loading.value = true
+async function loadStats() {
+  loadingStats.value = true
   try {
-    const [statsRes, activityRes] = await Promise.all([
-      apiFetch<{ stats: ClientStats }>(`/api/clients/${clientId.value}/stats`),
-      apiFetch<{ activity: ClientActivityEntry[] }>(`/api/clients/${clientId.value}/activity`, {
-        query: { limit: 50 },
-      }),
-    ])
-    stats.value = statsRes.stats
-    activity.value = activityRes.activity
+    const data = await apiFetch<{ stats: ClientStats }>(`/api/clients/${clientId.value}/stats`)
+    stats.value = data.stats
   }
   finally {
-    loading.value = false
+    loadingStats.value = false
   }
 }
 
-await load()
+await loadStats()
+onMounted(() => {
+  loadActivity()
+})
 </script>
 
 <template>
@@ -53,15 +50,15 @@ await load()
 
       <div class="stats-row">
         <div class="card stat">
-          <span class="stat-value">{{ stats?.credentialCount ?? 0 }}</span>
+          <span class="stat-value">{{ loadingStats ? '…' : (stats?.credentialCount ?? 0) }}</span>
           <span class="stat-label text-muted">Credentials</span>
         </div>
         <div class="card stat">
-          <span class="stat-value">{{ stats?.vaultCount ?? 0 }}</span>
+          <span class="stat-value">{{ loadingStats ? '…' : (stats?.vaultCount ?? 0) }}</span>
           <span class="stat-label text-muted">Vaults</span>
         </div>
         <div class="card stat">
-          <span class="stat-value">{{ stats?.projectCount ?? 0 }}</span>
+          <span class="stat-value">{{ loadingStats ? '…' : (stats?.projectCount ?? 0) }}</span>
           <span class="stat-label text-muted">Open Projects</span>
         </div>
       </div>
@@ -70,7 +67,7 @@ await load()
     <div class="card activity-section">
       <ClientsActivityFeed
         :entries="activity"
-        :loading="loading"
+        :loading="loadingActivity"
         title="Recent Activity"
         :retention-days="14"
         show-filters

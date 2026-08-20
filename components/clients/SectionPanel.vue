@@ -2,13 +2,6 @@
 import type { ClientSectionRecord } from '~/types/client'
 import { CLIENT_SECTIONS, sectionFieldDisplayKey, type ClientSection } from '~/utils/client-sections'
 
-interface OrgMember {
-  id: string
-  email: string
-  displayName: string | null
-  role: string
-}
-
 const props = defineProps<{ section: ClientSection }>()
 
 const { user } = useSession()
@@ -16,6 +9,7 @@ const ctx = inject<{ clientId: Ref<string> }>('clientContext')!
 const clientId = ctx.clientId
 const apiFetch = useApiFetch()
 const appSearch = useAppSearch()
+const { members: orgMembers, loadMembers } = useOrgMembers()
 
 const config = computed(() => CLIENT_SECTIONS[props.section])
 const needsMembers = computed(() => config.value.fields.some(field => field.type === 'user'))
@@ -23,7 +17,6 @@ const needsMembers = computed(() => config.value.fields.some(field => field.type
 useAppSearchPlaceholder(`Search ${config.value.label.toLowerCase()}...`)
 
 const records = ref<ClientSectionRecord[]>([])
-const orgMembers = ref<OrgMember[]>([])
 const loading = ref(true)
 const error = ref('')
 
@@ -40,17 +33,6 @@ const form = reactive({
 })
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
-
-async function loadMembers() {
-  if (!needsMembers.value) return
-  try {
-    const data = await apiFetch<{ members: OrgMember[] }>('/api/org/members')
-    orgMembers.value = data.members
-  }
-  catch {
-    orgMembers.value = []
-  }
-}
 
 async function load() {
   loading.value = true
@@ -73,7 +55,10 @@ async function load() {
   }
 }
 
-await Promise.all([load(), loadMembers()])
+await Promise.all([
+  load(),
+  needsMembers.value ? loadMembers() : Promise.resolve(),
+])
 
 const filteredRecords = computed(() => {
   if (!appSearch.normalizedQuery.value) return records.value
@@ -128,7 +113,7 @@ function buildMetadata(): Record<string, string> {
 
     if (field.type === 'user') {
       const displayKey = sectionFieldDisplayKey(field)
-      const member = orgMembers.value.find(m => m.id === value)
+      const member = (orgMembers.value ?? []).find(m => m.id === value)
       if (displayKey && member) {
         metadata[displayKey] = member.displayName?.trim() || member.email
       }
@@ -207,7 +192,7 @@ function fieldDisplayValue(record: ClientSectionRecord, field: (typeof config.va
     }
     const userId = record.metadata[field.key]
     if (userId) {
-      const member = orgMembers.value.find(m => m.id === userId)
+      const member = (orgMembers.value ?? []).find(m => m.id === userId)
       if (member) return member.displayName?.trim() || member.email
     }
     return undefined
@@ -336,7 +321,7 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
               v-model="form.metadata[field.key]"
             >
               <option value="">Unassigned</option>
-              <option v-for="member in orgMembers" :key="member.id" :value="member.id">
+              <option v-for="member in (orgMembers ?? [])" :key="member.id" :value="member.id">
                 {{ memberLabel(member) }}
               </option>
             </select>

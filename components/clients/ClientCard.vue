@@ -1,8 +1,12 @@
 <template>
   <NuxtLink :to="`/clients/${client.id}`" class="client-card card">
     <div class="logo-wrap">
-      <img v-if="client.logoUrl" :src="client.logoUrl" :alt="client.name" class="logo">
-      <span v-else class="logo-fallback">{{ initials }}</span>
+      <ClientsClientLogo
+        :src="client.logoUrl"
+        :alt="client.name"
+        :size="48"
+        :cache-key="client.updatedAt"
+      />
     </div>
     <div class="info">
       <div class="name-row">
@@ -18,14 +22,10 @@
 <script setup lang="ts">
 import type { ClientRecord } from '~/types/client'
 
-const props = defineProps<{
+defineProps<{
   client: ClientRecord
   lastActivity?: string
 }>()
-
-const initials = computed(() =>
-  props.client.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-)
 </script>
 
 <style scoped>
@@ -46,26 +46,6 @@ const initials = computed(() =>
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-}
-
-.logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  object-fit: cover;
-}
-
-.logo-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.875rem;
 }
 
 .info {
