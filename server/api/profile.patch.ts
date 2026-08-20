@@ -1,6 +1,6 @@
-import { requireAuth } from '../../utils/authorize'
-import { auditFromEvent } from '../../utils/audit'
-import { getSupabaseAdmin } from '../../utils/supabase'
+import { requireAuth } from '../utils/authorize'
+import { auditFromEvent } from '../utils/audit'
+import { getSupabaseAdmin } from '../utils/supabase'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     .from('users')
     .update({ display_name: displayName })
     .eq('id', user.id)
-    .select('id, email, display_name, role, is_active, created_at, last_login_at, last_login_ip')
+    .select('id, email, display_name, avatar_url, role, is_active, created_at, last_login_at, last_login_ip')
     .single()
 
   if (error || !updated) {
@@ -43,6 +43,7 @@ export default defineEventHandler(async (event) => {
       id: updated.id,
       email: updated.email,
       displayName: updated.display_name,
+      avatarUrl: updated.avatar_url,
       role: updated.role,
       isActive: updated.is_active,
       createdAt: updated.created_at,

@@ -1,4 +1,4 @@
-import type { AuthenticatedIdentity, IdentityProvider } from './types'
+import type { AuthenticatedIdentity, IdentityExchangeResult, IdentityProvider } from './types'
 import { getOAuthCallbackUrl } from '../app-url'
 
 interface ZohoTokenResponse {
@@ -18,6 +18,9 @@ interface ZohoUserInfo {
   Display_Name?: string
   first_name?: string
   last_name?: string
+  picture?: string
+  photo?: string
+  Picture?: string
 }
 
 function getZohoConfig() {
@@ -53,6 +56,12 @@ function extractDisplayName(info: ZohoUserInfo): string | undefined {
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
+function extractPictureUrl(info: ZohoUserInfo): string | undefined {
+  const url = info.picture ?? info.photo ?? info.Picture
+  if (!url || typeof url !== 'string') return undefined
+  return url
+}
+
 export const zohoIdentityProvider: IdentityProvider = {
   getAuthorizationUrl(state: string): string {
     const config = getZohoConfig()
@@ -60,7 +69,7 @@ export const zohoIdentityProvider: IdentityProvider = {
       client_id: config.zohoClientId,
       response_type: 'code',
       redirect_uri: getOAuthCallbackUrl(),
-      scope: 'AaaServer.profile.READ,email',
+      scope: 'openid,email,profile,AaaServer.profile.READ',
       access_type: 'offline',
       prompt: 'consent',
       state,
@@ -68,7 +77,7 @@ export const zohoIdentityProvider: IdentityProvider = {
     return `${config.zohoAuthUrl}?${params.toString()}`
   },
 
-  async exchangeCodeForIdentity(code: string): Promise<AuthenticatedIdentity> {
+  async exchangeCodeForIdentity(code: string): Promise<IdentityExchangeResult> {
     const config = getZohoConfig()
 
     const tokenBody = new URLSearchParams({
@@ -93,11 +102,17 @@ export const zohoIdentityProvider: IdentityProvider = {
       headers: { Authorization: `Zoho-oauthtoken ${tokenResponse.access_token}` },
     })
 
-    return {
+    const identity: AuthenticatedIdentity = {
       provider: 'zoho',
       providerSubject: extractSubject(userInfo),
       email: extractEmail(userInfo),
       displayName: extractDisplayName(userInfo),
+      pictureUrl: extractPictureUrl(userInfo),
+    }
+
+    return {
+      identity,
+      accessToken: tokenResponse.access_token,
     }
   },
 }

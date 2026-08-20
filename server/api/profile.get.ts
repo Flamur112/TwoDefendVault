@@ -1,5 +1,5 @@
-import { requireAuth } from '../../utils/authorize'
-import { getSupabaseAdmin } from '../../utils/supabase'
+import { requireAuth } from '../utils/authorize'
+import { getSupabaseAdmin } from '../utils/supabase'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: profile, error } = await supabase
     .from('users')
-    .select('id, email, display_name, role, is_active, created_at, last_login_at, last_login_ip')
+    .select('id, email, display_name, avatar_url, role, is_active, created_at, last_login_at, last_login_ip')
     .eq('id', user.id)
     .single()
 
@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       id: profile.id,
       email: profile.email,
       displayName: profile.display_name,
+      avatarUrl: profile.avatar_url,
       role: profile.role,
       isActive: profile.is_active,
       createdAt: profile.created_at,

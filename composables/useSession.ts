@@ -3,6 +3,7 @@ export interface SessionUser {
   orgId: string
   email: string
   displayName: string | null
+  avatarUrl: string | null
   role: 'admin' | 'member' | 'readonly'
 }
 

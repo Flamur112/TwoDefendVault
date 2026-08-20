@@ -71,7 +71,7 @@ export default defineNuxtConfig({
         'script-src': ["'self'", "'strict-dynamic'", "'nonce-{{nonce}}'"],
         'style-src': ["'self'", "'unsafe-inline'"],
         'connect-src': ["'self'", 'https://*.supabase.co', 'https://accounts.zoho.eu'],
-        'img-src': ["'self'", 'data:'],
+        'img-src': ["'self'", 'data:', 'https://*.supabase.co', 'https://*.zoho.eu', 'https://*.zoho.com'],
         'frame-ancestors': ["'none'"],
         'upgrade-insecure-requests': isProd,
       },
@@ -102,6 +102,9 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'netlify',
+    scheduledTasks: {
+      '0 4 * * *': ['retention:purge'],
+    },
     output: {
       publicDir: '.output/public',
     },

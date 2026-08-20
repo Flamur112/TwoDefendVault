@@ -79,7 +79,11 @@
     <div class="right">
       <div ref="menuRef" class="user-menu">
         <button type="button" class="user-btn" aria-expanded="open" @click.stop="open = !open">
-          <span class="avatar">{{ initials }}</span>
+          <UiUserAvatar
+            :name="user?.displayName || user?.email || 'Account'"
+            :avatar-url="user?.avatarUrl"
+            :size="32"
+          />
           <span class="name">{{ user?.displayName || user?.email || 'Account' }}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -131,13 +135,6 @@ const showGlobalResults = computed(() =>
   && searchFocused.value
   && appSearch.query.value.trim().length > 0,
 )
-
-const initials = computed(() => {
-  const n = user.value?.displayName || user.value?.email || '?'
-  const parts = n.split(/\s+/)
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
-  return n.slice(0, 2).toUpperCase()
-})
 
 const shortcutLabel = computed(() =>
   typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K',
@@ -391,20 +388,6 @@ onMounted(() => {
   border-radius: 8px;
 }
 .user-btn:hover { background: var(--card); }
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
 
 .name {
   font-size: 0.875rem;

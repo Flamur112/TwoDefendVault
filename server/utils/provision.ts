@@ -1,5 +1,6 @@
 import type { AuthenticatedIdentity } from './identity/types'
 import { assertEmailDomainAllowed, LoginAccessError } from './auth-access'
+import { syncUserAvatarFromUrl } from './user-avatar'
 import { getSupabaseAdmin } from './supabase'
 
 export interface ResolvedUser {
@@ -7,6 +8,7 @@ export interface ResolvedUser {
   orgId: string
   email: string
   displayName: string | null
+  avatarUrl: string | null
   role: 'admin' | 'member' | 'readonly'
 }
 
@@ -49,7 +51,7 @@ async function loadActiveUser(userId: string): Promise<ResolvedUser> {
   const supabase = getSupabaseAdmin()
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, org_id, email, display_name, role, is_active')
+    .select('id, org_id, email, display_name, avatar_url, role, is_active')
     .eq('id', userId)
     .maybeSingle()
 
@@ -66,6 +68,7 @@ async function loadActiveUser(userId: string): Promise<ResolvedUser> {
     orgId: user.org_id,
     email: user.email,
     displayName: user.display_name,
+    avatarUrl: user.avatar_url,
     role: user.role as ResolvedUser['role'],
   }
 }
@@ -74,13 +77,23 @@ async function syncProfile(
   userId: string,
   identity: AuthenticatedIdentity,
 ): Promise<void> {
-  if (!identity.displayName) return
-
   const supabase = getSupabaseAdmin()
-  await supabase
-    .from('users')
-    .update({ display_name: identity.displayName })
-    .eq('id', userId)
+  const updates: Record<string, string | null> = {}
+
+  if (identity.displayName) {
+    updates.display_name = identity.displayName
+  }
+
+  if (identity.pictureUrl) {
+    const avatarUrl = await syncUserAvatarFromUrl(userId, identity.pictureUrl)
+    if (avatarUrl) {
+      updates.avatar_url = avatarUrl
+    }
+  }
+
+  if (Object.keys(updates).length === 0) return
+
+  await supabase.from('users').update(updates).eq('id', userId)
 }
 
 export async function resolveUserFromIdentity(

@@ -12,6 +12,7 @@ interface ProfileUser {
   id: string
   email: string
   displayName: string | null
+  avatarUrl: string | null
   role: 'admin' | 'member' | 'readonly'
   isActive: boolean
   createdAt: string
@@ -85,6 +86,7 @@ async function saveProfile() {
       setSessionUser({
         ...sessionUser.value,
         displayName: data.user.displayName,
+        avatarUrl: data.user.avatarUrl,
       })
     }
     toast.show('Profile updated')
@@ -132,6 +134,19 @@ await loadProfile()
     <p v-if="loading" class="text-muted">Loading profile…</p>
 
     <template v-else-if="profile">
+      <section class="card profile-hero">
+        <UiUserAvatar
+          :name="profile.displayName || profile.email"
+          :avatar-url="profile.avatarUrl"
+          :size="72"
+        />
+        <div class="profile-hero-copy">
+          <h2>{{ profile.displayName || profile.email }}</h2>
+          <p class="text-muted">{{ profile.email }}</p>
+          <p class="text-muted avatar-note">Photo syncs from Zoho each time you sign in.</p>
+        </div>
+      </section>
+
       <section class="card">
         <h2>Your details</h2>
         <form class="form" @submit.prevent="saveProfile">
@@ -242,6 +257,26 @@ await loadProfile()
 .card h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
+}
+
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-hero-copy h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.125rem;
+}
+
+.profile-hero-copy p {
+  margin: 0;
+}
+
+.avatar-note {
+  margin-top: 0.35rem !important;
+  font-size: 0.75rem;
 }
 
 .form {

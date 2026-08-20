@@ -8,6 +8,7 @@ export interface SessionUser {
   orgId: string
   email: string
   displayName: string | null
+  avatarUrl: string | null
   role: 'admin' | 'member' | 'readonly'
 }
 
@@ -70,7 +71,7 @@ export async function validateSession(token: string): Promise<SessionUser | null
       expires_at,
       revoked_at,
       last_seen_at,
-      users!inner(id, org_id, email, display_name, role, is_active)
+      users!inner(id, org_id, email, display_name, avatar_url, role, is_active)
     `)
     .eq('token_hash', tokenHash)
     .maybeSingle()
@@ -95,6 +96,7 @@ export async function validateSession(token: string): Promise<SessionUser | null
     orgId: userRow.org_id,
     email: userRow.email,
     displayName: userRow.display_name,
+    avatarUrl: userRow.avatar_url ?? null,
     role: userRow.role as SessionUser['role'],
   }
 }

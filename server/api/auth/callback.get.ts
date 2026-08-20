@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const provider = getIdentityProvider('zoho')
-  const identity = await provider.exchangeCodeForIdentity(code)
+  const { identity } = await provider.exchangeCodeForIdentity(code)
 
   let user
   try {

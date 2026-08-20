@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase'
 import { maybeRunRetentionPurge } from './retention-purge'
 
-export { ACTIVITY_RETENTION_DAYS, activityCutoffIso } from './retention-purge'
+export { activityCutoffIso } from './retention-purge'
 
 export async function logClientActivity(
   clientId: string,
