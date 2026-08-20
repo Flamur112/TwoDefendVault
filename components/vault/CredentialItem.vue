@@ -167,7 +167,7 @@ async function decrypt() {
       error.value = 'Credential data is missing'
     }
     else {
-      error.value = 'Failed to decrypt credential — try signing out and back in'
+      error.value = 'Failed to decrypt credential. Try signing out and back in.'
     }
   }
   finally {

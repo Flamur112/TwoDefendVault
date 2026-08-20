@@ -26,7 +26,10 @@
         <li v-for="entry in visibleEntries" :key="entry.id" class="entry">
           <span class="dot" :class="dotClass(entry.action)" />
           <div class="content">
-            <span class="action">{{ formatClientActivityEntry(entry) }}</span>
+            <p class="summary">
+              <span class="action-label">{{ actionLabel(entry) }}</span>
+              <span v-if="detailLabel(entry)" class="detail">{{ detailLabel(entry) }}</span>
+            </p>
             <span class="meta text-muted">{{ entry.userName }} · {{ formatDate(entry.createdAt) }}</span>
           </div>
         </li>
@@ -49,7 +52,8 @@ import {
   ACTIVITY_RETENTION_DAYS,
   type ActivityFilter,
   filterActivityEntries,
-  formatClientActivityEntry,
+  getClientActivityActionLabel,
+  getClientActivityDetail,
 } from '~/utils/client-activity'
 
 const props = withDefaults(defineProps<{
@@ -84,6 +88,14 @@ const visibleEntries = computed(() => {
   if (expanded.value) return filteredEntries.value
   return filteredEntries.value.slice(0, props.initialLimit)
 })
+
+function actionLabel(entry: ClientActivityEntry) {
+  return getClientActivityActionLabel(entry.action)
+}
+
+function detailLabel(entry: ClientActivityEntry) {
+  return getClientActivityDetail(entry.action, entry.metadata)
+}
 
 watch(activeFilter, () => {
   expanded.value = false
@@ -185,9 +197,26 @@ function formatDate(iso: string) {
   min-width: 0;
 }
 
-.action {
+.summary {
+  margin: 0;
+  line-height: 1.4;
   font-size: 0.875rem;
-  line-height: 1.35;
+}
+
+.action-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detail {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.detail::before {
+  content: ': ';
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .meta {

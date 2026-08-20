@@ -235,7 +235,7 @@ await load()
                 {{ log.success ? 'Success' : 'Failed' }}
               </span>
             </td>
-            <td class="mono">{{ log.ipAddress || '—' }}</td>
+            <td class="mono">{{ log.ipAddress || 'None' }}</td>
             <td class="details text-muted">
               {{ formatAuditMetadata(log.metadata) || 'None' }}
             </td>

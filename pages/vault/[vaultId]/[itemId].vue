@@ -74,7 +74,7 @@ async function load() {
     const err = e as { statusCode?: number }
     error.value = err.statusCode === 403
       ? 'You do not have access to this item.'
-      : 'Failed to load or decrypt credential — try signing out and back in'
+      : 'Failed to load or decrypt credential. Try signing out and back in'
   }
   finally {
     loading.value = false

@@ -6,6 +6,41 @@
   node_bundler = "esbuild"
 
 [[redirects]]
+  from = "/favicon.ico"
+  to = "/favicon.ico"
+  status = 200
+
+[[redirects]]
+  from = "/favicon.svg"
+  to = "/favicon.svg"
+  status = 200
+
+[[redirects]]
+  from = "/favicon-16.png"
+  to = "/favicon-16.png"
+  status = 200
+
+[[redirects]]
+  from = "/favicon-32.png"
+  to = "/favicon-32.png"
+  status = 200
+
+[[redirects]]
+  from = "/apple-touch-icon.png"
+  to = "/apple-touch-icon.png"
+  status = 200
+
+[[redirects]]
+  from = "/site.webmanifest"
+  to = "/site.webmanifest"
+  status = 200
+
+[[redirects]]
+  from = "/logo.svg"
+  to = "/logo.svg"
+  status = 200
+
+[[redirects]]
   from = "/vault"
   to = "/clients"
   status = 301

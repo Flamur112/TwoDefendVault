@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = [
   'user.create',
   'user.update',
   'user.deactivate',
+  'user.delete',
 ] as const
 
 export type AuditAction = typeof AUDIT_ACTIONS[number]
@@ -45,4 +46,5 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.create': 'User created',
   'user.update': 'User updated',
   'user.deactivate': 'User deactivated',
+  'user.delete': 'User deleted',
 }

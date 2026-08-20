@@ -9,6 +9,8 @@
 <script setup lang="ts">
 const props = defineProps<{ value: string }>()
 
+const toast = useToast()
+
 const CLEAR_SECONDS = 30
 
 const copying = ref(false)
@@ -45,6 +47,7 @@ async function copy() {
   try {
     await navigator.clipboard.writeText(props.value)
     copied.value = true
+    toast.show('Copied to clipboard')
     countdown.value = CLEAR_SECONDS
 
     countdownTimer = setInterval(async () => {
@@ -56,6 +59,7 @@ async function copy() {
   }
   catch {
     copied.value = false
+    toast.show('Could not copy to clipboard', 'error')
   }
   finally {
     copying.value = false

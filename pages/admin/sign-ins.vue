@@ -95,7 +95,7 @@ await load()
       <div>
         <h1 class="page-title">Sign-in Activity</h1>
         <p class="text-muted description">
-          Successful sign-ins and blocked attempts, with IP addresses. Only recorded at login — not on every page view.
+          Successful sign-ins and blocked attempts, with IP addresses. Recorded at login only, not on every page view.
         </p>
       </div>
       <button type="button" class="btn" :disabled="loading" @click="load">
@@ -144,7 +144,7 @@ await load()
             </td>
             <td class="mono">{{ event.ipAddress || 'Unknown' }}</td>
             <td class="text-muted">
-              {{ event.success ? '—' : (formatReason(event.reason) || 'Failed') }}
+              {{ event.success ? 'None' : (formatReason(event.reason) || 'Failed') }}
             </td>
           </tr>
         </tbody>

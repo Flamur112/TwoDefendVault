@@ -9,6 +9,30 @@ const appUrl = normalizeAppUrl(process.env.APP_URL)
 export default defineNuxtConfig({
   modules: ['@nuxtjs/supabase', 'nuxt-security'],
 
+  app: {
+    head: {
+      title: 'TwoDefend Vault',
+      titleTemplate: titleChunk =>
+        titleChunk ? `${titleChunk} · TwoDefend Vault` : 'TwoDefend Vault',
+      htmlAttrs: { lang: 'en' },
+      meta: [
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'description', content: 'Secure client credentials and documentation for TwoDefend.' },
+        { name: 'theme-color', content: '#181c26' },
+        { name: 'apple-mobile-web-app-title', content: 'TwoDefend' },
+      ],
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16.png' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' },
+      ],
+    },
+  },
+
   // Avoid dev-only Vite race with routeRules + #app-manifest (nuxt/nuxt#33606).
   experimental: {
     appManifest: false,
@@ -85,6 +109,13 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/favicon.ico': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/favicon.svg': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/favicon-16.png': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/favicon-32.png': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/apple-touch-icon.png': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/site.webmanifest': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/logo.svg': { headers: { 'cache-control': 'public, max-age=604800' } },
     '/': { redirect: { to: '/dashboard', statusCode: 302 } },
     '/vault': { redirect: { to: '/clients', statusCode: 301 } },
   },

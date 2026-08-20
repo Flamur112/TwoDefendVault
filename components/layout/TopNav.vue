@@ -7,16 +7,20 @@
     </div>
 
     <div v-if="showTopSearch" ref="searchRef" class="center">
-      <input
-        v-model="searchText"
-        type="search"
-        class="search"
-        placeholder="Search clients, credentials, assets..."
-        autocomplete="off"
-        aria-label="Search"
-        @focus="onSearchFocus"
-        @keydown.escape="closeResults"
-      >
+      <div class="search-wrap">
+        <input
+          ref="searchInput"
+          v-model="searchText"
+          type="search"
+          class="search"
+          placeholder="Search clients, credentials, assets..."
+          autocomplete="off"
+          aria-label="Search"
+          @focus="onSearchFocus"
+          @keydown.escape="closeResults"
+        >
+        <kbd class="search-kbd" aria-hidden="true">{{ shortcutLabel }}</kbd>
+      </div>
       <div v-if="showGlobalResults" class="search-results">
         <p v-if="globalLoading" class="search-status">Searching...</p>
         <p v-else-if="globalError" class="search-status error">{{ globalError }}</p>
@@ -108,6 +112,7 @@ const searchText = computed({
 const open = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 const searchRef = ref<HTMLElement | null>(null)
+const searchInput = ref<HTMLInputElement | null>(null)
 const searchFocused = ref(false)
 const globalResults = ref<GlobalSearchResults>({ clients: [], credentials: [], records: [] })
 const globalLoading = ref(false)
@@ -133,6 +138,20 @@ const initials = computed(() => {
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
   return n.slice(0, 2).toUpperCase()
 })
+
+const shortcutLabel = computed(() =>
+  typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K',
+)
+
+function focusGlobalSearch() {
+  if (!showTopSearch.value) return
+  searchInput.value?.focus()
+  searchInput.value?.select()
+  searchFocused.value = true
+  if (appSearch.query.value.trim()) {
+    runGlobalSearch()
+  }
+}
 
 let globalDebounce: ReturnType<typeof setTimeout> | null = null
 
@@ -198,6 +217,13 @@ onMounted(() => {
       closeResults()
     }
   })
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault()
+      focusGlobalSearch()
+    }
+  })
 })
 </script>
 
@@ -229,14 +255,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.center {
-  flex: 1;
-  min-width: 0;
-  max-width: none;
-  margin: 0 0.5rem;
-  position: relative;
-}
-
 .icon-btn {
   background: none;
   border: none;
@@ -245,17 +263,48 @@ onMounted(() => {
   padding: 0.35rem;
   border-radius: 6px;
 }
-.icon-btn:hover { color: var(--text); background: var(--card); }
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+.center {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  margin: 0 0.5rem;
+  position: relative;
+}
+
+.search-wrap {
+  position: relative;
+}
 
 .search {
   width: 100%;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.55rem 1rem;
+  padding: 0.55rem 3.25rem 0.55rem 1rem;
   min-height: 40px;
   color: var(--text);
   font-size: 0.9375rem;
+}
+
+.search-kbd {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6875rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  font-family: inherit;
 }
 
 .search-results {

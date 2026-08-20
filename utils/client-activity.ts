@@ -15,61 +15,74 @@ export function matchesActivityFilter(action: string, filter: ActivityFilter): b
   return true
 }
 
-function suffix(value: string | undefined): string {
-  return value ? `: ${value}` : ''
+
+export function getClientActivityDetail(
+  action: string,
+  metadata: Record<string, unknown> | null,
+): string | null {
+  const itemName = typeof metadata?.itemName === 'string' ? metadata.itemName : ''
+  const vaultName = typeof metadata?.vaultName === 'string' ? metadata.vaultName : ''
+  const title = typeof metadata?.title === 'string' ? metadata.title : ''
+  const name = typeof metadata?.name === 'string' ? metadata.name : ''
+
+  if (itemName) return itemName
+  if (vaultName) return vaultName
+  if (title) return title
+  if (name) return name
+
+  if (action.endsWith('_added') || action.endsWith('_updated') || action.endsWith('_deleted')) {
+    return null
+  }
+
+  return null
+}
+
+export function getClientActivityActionLabel(action: string): string {
+  switch (action) {
+    case 'created':
+      return 'Created client'
+    case 'edited':
+      return 'Edited client details'
+    case 'favorite_toggled':
+      return 'Updated favorite status'
+    case 'vault_added':
+      return 'Added vault'
+    case 'vault_deleted':
+      return 'Deleted vault'
+    case 'credential_added':
+      return 'Added credential'
+    case 'documents_added':
+      return 'Created document'
+    case 'documents_updated':
+      return 'Edited document'
+    case 'documents_deleted':
+      return 'Deleted document'
+    case 'documents_viewed':
+      return 'Viewed document'
+    case 'projects_updated':
+      return 'Updated project'
+    default: {
+      if (action.endsWith('_added')) {
+        return `Added ${action.replace(/_added$/, '').replace(/_/g, ' ')}`
+      }
+      if (action.endsWith('_updated')) {
+        return `Updated ${action.replace(/_updated$/, '').replace(/_/g, ' ')}`
+      }
+      if (action.endsWith('_deleted')) {
+        return `Deleted ${action.replace(/_deleted$/, '').replace(/_/g, ' ')}`
+      }
+      return action.replace(/_/g, ' ')
+    }
+  }
 }
 
 export function formatClientActivityAction(
   action: string,
   metadata: Record<string, unknown> | null,
 ): string {
-  const itemName = typeof metadata?.itemName === 'string' ? metadata.itemName : ''
-  const vaultName = typeof metadata?.vaultName === 'string' ? metadata.vaultName : ''
-  const title = typeof metadata?.title === 'string' ? metadata.title : ''
-  const name = typeof metadata?.name === 'string' ? metadata.name : ''
-
-  switch (action) {
-    case 'created':
-      return `Created client${suffix(name)}`
-    case 'edited':
-      return 'Edited client details'
-    case 'favorite_toggled':
-      return 'Updated favorite status'
-    case 'vault_added':
-      return `Added vault${suffix(vaultName)}`
-    case 'vault_deleted':
-      return `Deleted vault${suffix(vaultName)}`
-    case 'credential_added':
-      return `Added credential${suffix(itemName)}`
-    case 'documents_added':
-      return `Created document${suffix(title)}`
-    case 'documents_updated':
-      return `Edited document${suffix(title)}`
-    case 'documents_deleted':
-      return `Deleted document${suffix(title)}`
-    case 'documents_viewed':
-      return `Viewed document${suffix(title)}`
-    case 'projects_updated':
-      return `Updated project${suffix(title)}`
-    default: {
-      if (action.endsWith('_added') && title) {
-        const section = action.replace(/_added$/, '').replace(/_/g, ' ')
-        return `Added ${section}${suffix(title)}`
-      }
-      if (action.endsWith('_updated') && title) {
-        const section = action.replace(/_updated$/, '').replace(/_/g, ' ')
-        return `Updated ${section}${suffix(title)}`
-      }
-      if (action.endsWith('_deleted') && title) {
-        const section = action.replace(/_deleted$/, '').replace(/_/g, ' ')
-        return `Deleted ${section}${suffix(title)}`
-      }
-      if (itemName) return `${action.replace(/_/g, ' ')}${suffix(itemName)}`
-      if (vaultName) return `${action.replace(/_/g, ' ')}${suffix(vaultName)}`
-      if (title) return `${action.replace(/_/g, ' ')}${suffix(title)}`
-      return action.replace(/_/g, ' ')
-    }
-  }
+  const label = getClientActivityActionLabel(action)
+  const detail = getClientActivityDetail(action, metadata)
+  return detail ? `${label}: ${detail}` : label
 }
 
 export function formatClientActivityEntry(entry: ClientActivityEntry): string {

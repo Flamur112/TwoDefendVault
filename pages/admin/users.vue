@@ -24,6 +24,8 @@ const newEmail = ref('')
 const newDisplayName = ref('')
 const newRole = ref<'admin' | 'member' | 'readonly'>('member')
 const creating = ref(false)
+const deletingUser = ref<AdminUser | null>(null)
+const deleting = ref(false)
 
 async function loadUsers() {
   loading.value = true
@@ -86,6 +88,23 @@ async function createUser() {
     creating.value = false
   }
 }
+
+async function deleteUser() {
+  if (!deletingUser.value) return
+  deleting.value = true
+  error.value = ''
+  try {
+    await $fetch(`/api/admin/users/${deletingUser.value.id}`, { method: 'DELETE' })
+    users.value = users.value.filter(u => u.id !== deletingUser.value!.id)
+    deletingUser.value = null
+  }
+  catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete user'
+  }
+  finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -119,7 +138,10 @@ async function createUser() {
           <em>Read-only</em> can view but not change data.
         </li>
         <li>
-          <strong>Deactivate</strong> when someone leaves. They cannot sign in again; their sessions are revoked immediately.
+          <strong>Deactivate</strong> when someone leaves. They cannot sign in again and their sessions are revoked immediately.
+        </li>
+        <li>
+          <strong>Delete</strong> removes a user permanently. Use this for accounts that should never have existed (for example unauthorized sign-ups).
         </li>
       </ol>
     </section>
@@ -198,13 +220,13 @@ async function createUser() {
                 {{ new Date(u.lastLoginAt).toLocaleString() }}
               </span>
             </td>
-            <td class="mono">{{ u.lastLoginIp || '—' }}</td>
+            <td class="mono">{{ u.lastLoginIp || 'None' }}</td>
             <td>
               <span :class="u.isActive ? 'active' : 'inactive'">
                 {{ u.isActive ? 'Active' : 'Deactivated' }}
               </span>
             </td>
-            <td>
+            <td class="actions">
               <button
                 v-if="u.isActive && u.id !== currentUser?.id"
                 type="button"
@@ -223,11 +245,38 @@ async function createUser() {
                 Reactivate
               </button>
               <span v-else class="self-label">You</span>
+              <button
+                v-if="u.id !== currentUser?.id"
+                type="button"
+                class="btn btn-danger btn-ghost"
+                :disabled="saving === u.id || deleting"
+                @click="deletingUser = u"
+              >
+                Delete
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </section>
+
+    <div v-if="deletingUser" class="modal-backdrop" @click.self="deletingUser = null">
+      <div class="modal card">
+        <h3>Delete user?</h3>
+        <p class="text-muted">
+          Permanently remove <strong>{{ deletingUser.email }}</strong>. Their sign-in link and sessions will be removed.
+          Historical records will stay but no longer show this user as the actor.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn" :disabled="deleting" @click="deletingUser = null">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-danger" :disabled="deleting" @click="deleteUser">
+            {{ deleting ? 'Deleting…' : 'Delete user' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -334,5 +383,43 @@ async function createUser() {
 .self-label {
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 200;
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+}
+
+.modal h3 {
+  margin: 0 0 0.75rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
 }
 </style>
