@@ -43,7 +43,6 @@ export default defineNuxtConfig({
     sessionSecret: process.env.SESSION_SECRET,
     vaultKeyMaterial: process.env.VAULT_KEY_MATERIAL,
     orgSlug: process.env.ORG_SLUG,
-    allowedEmailDomains: process.env.ALLOWED_EMAIL_DOMAINS || 'twodefend.com',
     cronSecret: process.env.CRON_SECRET,
     zohoClientId: process.env.ZOHO_CLIENT_ID,
     zohoClientSecret: process.env.ZOHO_CLIENT_SECRET,

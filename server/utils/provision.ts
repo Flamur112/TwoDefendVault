@@ -1,5 +1,5 @@
 import type { AuthenticatedIdentity } from './identity/types'
-import { assertEmailDomainAllowed, LoginAccessError } from './auth-access'
+import { LoginAccessError } from './auth-access'
 import { syncUserAvatarFromUrl } from './user-avatar'
 import { getSupabaseAdmin } from './supabase'
 
@@ -100,8 +100,6 @@ export async function resolveUserFromIdentity(
   identity: AuthenticatedIdentity,
   orgSlug: string,
 ): Promise<ResolvedUser> {
-  assertEmailDomainAllowed(identity.email)
-
   const supabase = getSupabaseAdmin()
   const orgId = await getOrganizationId(orgSlug)
 
