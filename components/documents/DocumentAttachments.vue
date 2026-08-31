@@ -26,13 +26,13 @@ const emit = defineEmits<{
   'update:modelValue': [value: DocumentAttachment[]]
 }>()
 
-const fileInput = ref<HTMLInputElement | null>(null)
-const folderInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const downloading = ref(false)
 const uploadStatus = ref('')
 const error = ref('')
 const openFolders = ref<Set<string>>(new Set(['']))
+
+const clientIdValue = computed(() => String(props.clientId ?? ''))
 
 const attachments = computed({
   get: () => props.modelValue,
@@ -53,9 +53,34 @@ const remainingSlots = computed(() =>
   Math.max(0, DOCUMENT_ATTACHMENTS_MAX - attachments.value.length),
 )
 
+const uploadDisabled = computed(() =>
+  uploading.value || downloading.value || remainingSlots.value === 0 || !clientIdValue.value,
+)
+
+function pickUploadableFiles(fileList: FileList | null): File[] {
+  if (!fileList) return []
+  const picked = [...fileList].filter(file => file.size > 0)
+  const skipped = fileList.length - picked.length
+  if (skipped > 0 && picked.length === 0) {
+    throw new Error('Selected folder has no uploadable files')
+  }
+  if (skipped > 0) {
+    uploadStatus.value = `Skipping ${skipped} empty file${skipped === 1 ? '' : 's'}…`
+  }
+  return picked
+}
+
 async function onFilesSelected(event: Event, fromFolder = false) {
   const input = event.target as HTMLInputElement
-  const files = input.files ? [...input.files] : []
+  let files: File[] = []
+  try {
+    files = pickUploadableFiles(input.files)
+  }
+  catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'No files selected'
+    input.value = ''
+    return
+  }
   input.value = ''
   if (files.length === 0) return
 
@@ -66,13 +91,14 @@ async function onFilesSelected(event: Event, fromFolder = false) {
 
   uploading.value = true
   error.value = ''
+  uploadStatus.value = ''
 
   try {
     const added = fromFolder || files.length > 1
-      ? await uploadClientFiles(props.clientId, files, msg => {
+      ? await uploadClientFiles(clientIdValue.value, files, msg => {
           uploadStatus.value = msg
         })
-      : [await uploadClientFile(props.clientId, files[0], msg => {
+      : [await uploadClientFile(clientIdValue.value, files[0], msg => {
           uploadStatus.value = msg
         })]
 
@@ -112,7 +138,7 @@ async function removeFileItem(file: FileTreeItem) {
 
 async function downloadAttachment(attachment: DocumentAttachment) {
   try {
-    await downloadClientAttachment(props.clientId, attachment)
+    await downloadClientAttachment(clientIdValue.value, attachment)
   }
   catch {
     error.value = 'Failed to open file'
@@ -126,7 +152,7 @@ async function downloadFolder(node: FolderNode) {
     const baseName = (props.documentTitle || 'document').replace(/[^\w\s.-]/g, '').trim() || 'document'
     const zipName = node.path ? `${baseName}-${node.name}.zip` : `${baseName}-files.zip`
     await downloadClientAttachmentFolderZip(
-      props.clientId,
+      clientIdValue.value,
       attachments.value,
       node,
       zipName,
@@ -146,7 +172,7 @@ async function removeAttachment(attachment: DocumentAttachment) {
   if (!confirm(`Remove ${attachmentRelativePath(attachment)}?`)) return
   error.value = ''
   try {
-    await deleteClientFile(props.clientId, attachment.id)
+    await deleteClientFile(clientIdValue.value, attachment.id)
     attachments.value = attachments.value.filter(item => item.id !== attachment.id)
   }
   catch {
@@ -180,43 +206,31 @@ async function removeAttachment(attachment: DocumentAttachment) {
     <p v-else-if="readonly" class="text-muted empty">No files attached.</p>
 
     <template v-if="!readonly">
-      <input
-        ref="fileInput"
-        type="file"
-        multiple
-        class="file-input"
-        @change="onFilesSelected($event, false)"
-      >
-      <input
-        ref="folderInput"
-        type="file"
-        webkitdirectory
-        directory
-        multiple
-        class="file-input"
-        @change="onFilesSelected($event, true)"
-      >
       <div class="upload-actions">
-        <button
-          type="button"
-          class="btn btn-sm upload-btn"
-          :disabled="uploading || downloading || remainingSlots === 0"
-          @click="fileInput?.click()"
-        >
-          Upload file
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm upload-btn"
-          :disabled="uploading || downloading || remainingSlots === 0"
-          @click="folderInput?.click()"
-        >
+        <label class="btn btn-sm upload-label" :class="{ disabled: uploadDisabled }">
+          {{ uploading ? uploadStatus || 'Uploading…' : 'Upload file' }}
+          <input
+            type="file"
+            multiple
+            :disabled="uploadDisabled"
+            @change="onFilesSelected($event, false)"
+          >
+        </label>
+        <label class="btn btn-sm upload-label" :class="{ disabled: uploadDisabled }">
           Upload folder
-        </button>
+          <input
+            type="file"
+            webkitdirectory
+            directory
+            multiple
+            :disabled="uploadDisabled"
+            @change="onFilesSelected($event, true)"
+          >
+        </label>
         <button
           v-if="attachments.length > 0"
           type="button"
-          class="btn btn-sm upload-btn"
+          class="btn btn-sm"
           :disabled="uploading || downloading"
           @click="downloadFolder(tree)"
         >
@@ -224,7 +238,7 @@ async function removeAttachment(attachment: DocumentAttachment) {
         </button>
       </div>
       <p v-if="uploading" class="status text-muted">{{ uploadStatus || 'Uploading…' }}</p>
-      <p class="hint text-muted">{{ fileSizeLimitMessage() }}</p>
+      <p class="hint text-muted">{{ fileSizeLimitMessage() }} Save the document to keep attachments.</p>
     </template>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -266,12 +280,29 @@ async function removeAttachment(attachment: DocumentAttachment) {
   gap: 0.5rem;
 }
 
-.file-input {
-  display: none;
+.upload-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
 }
 
-.upload-btn {
-  align-self: flex-start;
+.upload-label.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.upload-label input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
 }
 
 .hint,

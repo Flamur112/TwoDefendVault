@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { VaultFileRecord, VaultFolderNode } from '~/types/vault-file'
+import type { VaultFileRecord } from '~/types/vault-file'
+import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import { fileSizeLimitMessage } from '~/utils/file-limits'
 import { buildVaultFolderTree } from '~/utils/vault-file-tree'
 import {
@@ -25,11 +26,14 @@ const error = ref('')
 const expanded = ref(false)
 const openFolders = ref<Set<string>>(new Set(['']))
 
-const fileInput = ref<HTMLInputElement | null>(null)
-const folderInput = ref<HTMLInputElement | null>(null)
-
 const tree = computed(() => buildVaultFolderTree(files.value))
 const hasFiles = computed(() => files.value.length > 0)
+const uploadDisabled = computed(() => uploading.value || downloading.value)
+
+function pickUploadableFiles(fileList: FileList | null): File[] {
+  if (!fileList) return []
+  return [...fileList].filter(file => file.size > 0)
+}
 
 async function loadFiles() {
   loading.value = true
@@ -52,10 +56,6 @@ async function toggleExpanded() {
   }
 }
 
-function isFolderOpen(path: string): boolean {
-  return openFolders.value.has(path)
-}
-
 function toggleFolder(path: string) {
   const next = new Set(openFolders.value)
   if (next.has(path)) next.delete(path)
@@ -65,12 +65,16 @@ function toggleFolder(path: string) {
 
 async function onFilesSelected(event: Event) {
   const input = event.target as HTMLInputElement
-  const selected = input.files ? [...input.files] : []
+  const selected = pickUploadableFiles(input.files)
   input.value = ''
-  if (selected.length === 0) return
+  if (selected.length === 0) {
+    error.value = 'No uploadable files selected'
+    return
+  }
 
   uploading.value = true
   error.value = ''
+  uploadStatus.value = ''
   try {
     const added = await uploadVaultFiles(props.vaultId, selected, msg => {
       uploadStatus.value = msg
@@ -87,28 +91,36 @@ async function onFilesSelected(event: Event) {
   }
 }
 
-async function removeFile(file: VaultFileRecord) {
-  if (!confirm(`Remove ${file.relativePath || file.name}?`)) return
+function findFile(file: FileTreeItem): VaultFileRecord | undefined {
+  return files.value.find(item => item.id === file.id)
+}
+
+async function removeFile(file: FileTreeItem) {
+  const record = findFile(file)
+  if (!record) return
+  if (!confirm(`Remove ${record.relativePath || record.name}?`)) return
   error.value = ''
   try {
-    await deleteVaultFile(props.vaultId, file.id)
-    files.value = files.value.filter(item => item.id !== file.id)
+    await deleteVaultFile(props.vaultId, record.id)
+    files.value = files.value.filter(item => item.id !== record.id)
   }
   catch {
     error.value = 'Failed to remove file'
   }
 }
 
-async function downloadFile(file: VaultFileRecord) {
+async function downloadFile(file: FileTreeItem) {
+  const record = findFile(file)
+  if (!record) return
   try {
-    await downloadVaultFile(props.vaultId, file)
+    await downloadVaultFile(props.vaultId, record)
   }
   catch {
     error.value = 'Failed to download file'
   }
 }
 
-async function downloadFolder(node: VaultFolderNode) {
+async function downloadFolder(node: FolderNode) {
   downloading.value = true
   error.value = ''
   try {
@@ -161,38 +173,26 @@ onMounted(() => {
         <p v-else class="text-muted empty">No files uploaded yet.</p>
 
         <div v-if="canWrite" class="upload-actions">
-          <input
-            ref="fileInput"
-            type="file"
-            multiple
-            class="file-input"
-            @change="onFilesSelected"
-          >
-          <input
-            ref="folderInput"
-            type="file"
-            webkitdirectory
-            directory
-            multiple
-            class="file-input"
-            @change="onFilesSelected"
-          >
-          <button
-            type="button"
-            class="btn btn-sm"
-            :disabled="uploading || downloading"
-            @click="fileInput?.click()"
-          >
-            Upload file
-          </button>
-          <button
-            type="button"
-            class="btn btn-sm"
-            :disabled="uploading || downloading"
-            @click="folderInput?.click()"
-          >
+          <label class="btn btn-sm upload-label" :class="{ disabled: uploadDisabled }">
+            {{ uploading ? uploadStatus || 'Uploading…' : 'Upload file' }}
+            <input
+              type="file"
+              multiple
+              :disabled="uploadDisabled"
+              @change="onFilesSelected"
+            >
+          </label>
+          <label class="btn btn-sm upload-label" :class="{ disabled: uploadDisabled }">
             Upload folder
-          </button>
+            <input
+              type="file"
+              webkitdirectory
+              directory
+              multiple
+              :disabled="uploadDisabled"
+              @change="onFilesSelected"
+            >
+          </label>
           <button
             v-if="hasFiles"
             type="button"
@@ -272,8 +272,29 @@ onMounted(() => {
   gap: 0.5rem;
 }
 
-.file-input {
-  display: none;
+.upload-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.upload-label.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.upload-label input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
 }
 
 .hint,

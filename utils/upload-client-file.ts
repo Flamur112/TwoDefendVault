@@ -39,7 +39,8 @@ async function uploadFileToSignedUrl(file: File, entry: UploadUrlEntry): Promise
   })
 
   if (!response.ok) {
-    throw new Error(`Upload failed for ${entry.filename}`)
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Upload to storage failed for ${entry.filename}${detail ? `: ${detail.slice(0, 120)}` : ''}`)
   }
 }
 
@@ -107,15 +108,21 @@ export async function uploadClientFiles(
 ): Promise<DocumentAttachment[]> {
   if (files.length === 0) return []
 
-  for (const file of files) {
+  const uploadable = files.filter((file) => {
+    if (file.size <= 0) return false
     if (file.size > FILE_MAX_BYTES) {
       throw new Error(`${file.name} exceeds the ${FILE_MAX_BYTES / (1024 * 1024)} MB limit`)
     }
+    return true
+  })
+
+  if (uploadable.length === 0) {
+    throw new Error('No uploadable files selected')
   }
 
   onProgress?.('Preparing uploads…')
 
-  const payload = files.map((file) => {
+  const payload = uploadable.map((file) => {
     const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
       || file.name
     return {
@@ -131,7 +138,11 @@ export async function uploadClientFiles(
     { method: 'POST', body: { files: payload } },
   )
 
-  const pairs = uploads.map((entry, idx) => ({ entry, file: files[idx] }))
+  if (!uploads?.length) {
+    throw new Error('Upload preparation failed')
+  }
+
+  const pairs = uploads.map((entry, idx) => ({ entry, file: uploadable[idx] }))
   let completed = 0
 
   await runWithConcurrency(pairs, UPLOAD_CONCURRENCY, async ({ entry, file }) => {
