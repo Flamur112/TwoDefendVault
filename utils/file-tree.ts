@@ -11,15 +11,34 @@ function folderNameFromPath(path: string): string {
   return parts[parts.length - 1] ?? path
 }
 
+export function collectFolderPaths(node: FolderNode): string[] {
+  const paths: string[] = []
+  if (node.path) paths.push(node.path)
+  for (const child of node.folders) {
+    paths.push(...collectFolderPaths(child))
+  }
+  return paths
+}
+
+export function countFilesInFolder(node: FolderNode): number {
+  let count = node.files.length
+  for (const child of node.folders) {
+    count += countFilesInFolder(child)
+  }
+  return count
+}
+
 export function buildFolderTree(files: FileTreeItem[]): FolderNode {
   const root: FolderNode = { name: '', path: '', files: [], folders: [] }
   const folderMap = new Map<string, FolderNode>([['', root]])
 
   const ensureFolder = (path: string): FolderNode => {
+    if (!path) return root
+
     const existing = folderMap.get(path)
     if (existing) return existing
 
-    const parentPath = parentFolderPath(path ? `${path}/placeholder` : '')
+    const parentPath = parentFolderPath(path)
     const parent = ensureFolder(parentPath)
     const node: FolderNode = {
       name: folderNameFromPath(path),
@@ -34,8 +53,7 @@ export function buildFolderTree(files: FileTreeItem[]): FolderNode {
 
   for (const file of files) {
     const folderPath = parentFolderPath(file.relativePath)
-    const folder = ensureFolder(folderPath)
-    folder.files.push(file)
+    ensureFolder(folderPath).files.push(file)
   }
 
   const sortTree = (node: FolderNode) => {

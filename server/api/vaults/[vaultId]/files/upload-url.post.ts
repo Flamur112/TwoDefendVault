@@ -13,6 +13,7 @@ import {
 import { sanitizeFilename } from '../../../../utils/client-files'
 
 interface UploadRequest {
+  clientIndex?: number
   filename?: string
   mime?: string
   size?: number
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event) => {
 
   const batch = Array.isArray(body?.files) ? body.files as UploadRequest[] : null
   const requests: UploadRequest[] = batch ?? [{
+    clientIndex: 0,
     filename: body?.filename,
     mime: body?.mime,
     size: body?.size,
@@ -60,35 +62,74 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const uploads = await Promise.all(requests.map(async (req) => {
-    const relativePath = sanitizeRelativePath(
-      typeof req.relativePath === 'string' ? req.relativePath : '',
-    )
-    const filename = fileNameFromRelativePath(
-      relativePath,
-      typeof req.filename === 'string' ? sanitizeFilename(req.filename) : 'file',
-    )
-    const mime = typeof req.mime === 'string' ? req.mime.trim() : 'application/octet-stream'
-    const size = typeof req.size === 'number' ? req.size : Number(req.size)
+  const prepared: Array<{
+    clientIndex: number
+    fileId: string
+    filename: string
+    mime: string
+    relativePath: string
+    signed: ReturnType<typeof createVaultFileUploadUrl>
+  }> = []
+  const skipped: Array<{ clientIndex: number, filename: string, reason: string }> = []
 
-    validateVaultFileInput(filename, size, FILE_MAX_BYTES)
+  for (const req of requests) {
+    try {
+      const relativePath = sanitizeRelativePath(
+        typeof req.relativePath === 'string' ? req.relativePath : '',
+      )
+      const filename = fileNameFromRelativePath(
+        relativePath,
+        typeof req.filename === 'string' ? sanitizeFilename(req.filename) : 'file',
+      )
+      const mime = typeof req.mime === 'string' ? req.mime.trim() : 'application/octet-stream'
+      const size = typeof req.size === 'number' ? req.size : Number(req.size)
 
-    const fileId = randomUUID()
-    const signed = await createVaultFileUploadUrl(user.orgId, vaultId, fileId)
+      validateVaultFileInput(filename, size, FILE_MAX_BYTES)
 
+      const fileId = randomUUID()
+      prepared.push({
+        clientIndex: typeof req.clientIndex === 'number' ? req.clientIndex : prepared.length,
+        fileId,
+        filename,
+        mime,
+        relativePath: relativePath || filename,
+        signed: createVaultFileUploadUrl(user.orgId, vaultId, fileId),
+      })
+    }
+    catch (error) {
+      skipped.push({
+        clientIndex: typeof req.clientIndex === 'number' ? req.clientIndex : prepared.length,
+        filename: typeof req.filename === 'string' ? req.filename : 'file',
+        reason: error instanceof Error && 'statusMessage' in error
+          ? String((error as { statusMessage?: string }).statusMessage)
+          : 'Invalid file',
+      })
+    }
+  }
+
+  if (prepared.length === 0) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: skipped[0]?.reason ?? 'No valid files to upload',
+    })
+  }
+
+  const uploads = await Promise.all(prepared.map(async (entry) => {
+    const signed = await entry.signed
     return {
-      fileId,
+      clientIndex: entry.clientIndex,
+      fileId: entry.fileId,
       signedUrl: signed.signedUrl,
       token: signed.token,
       path: signed.path,
-      filename,
-      mime,
-      relativePath,
+      filename: entry.filename,
+      mime: entry.mime,
+      relativePath: entry.relativePath,
     }
   }))
 
   if (batch) {
-    return { uploads }
+    return { uploads, skipped }
   }
 
   return uploads[0]

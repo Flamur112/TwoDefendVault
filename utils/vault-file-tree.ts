@@ -1,11 +1,10 @@
 import type { VaultFileRecord } from '~/types/vault-file'
-import type { FolderNode } from '~/types/file-tree'
-import { buildFolderTree, filesInFolder, folderLabel } from '~/utils/file-tree'
+import { buildFolderTree, collectFolderPaths, countFilesInFolder, filesInFolder, folderLabel } from '~/utils/file-tree'
 
-export { filesInFolder, folderLabel }
-export type VaultFolderNode = FolderNode
+export { filesInFolder, folderLabel, collectFolderPaths, countFilesInFolder }
+export type { FolderNode as VaultFolderNode } from '~/types/file-tree'
 
-export function buildVaultFolderTree(files: VaultFileRecord[]): FolderNode {
+export function buildVaultFolderTree(files: VaultFileRecord[]) {
   return buildFolderTree(files.map(file => ({
     id: file.id,
     name: file.name,
@@ -13,4 +12,8 @@ export function buildVaultFolderTree(files: VaultFileRecord[]): FolderNode {
     mime: file.mime,
     size: file.size,
   })))
+}
+
+export function expandAllFolderPaths(tree: ReturnType<typeof buildFolderTree>): Set<string> {
+  return new Set(['', ...collectFolderPaths(tree)])
 }

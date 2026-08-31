@@ -5,7 +5,7 @@ import {
   type DocumentAttachment,
 } from '~/utils/document-attachments'
 import { fileSizeLimitMessage } from '~/utils/file-limits'
-import { buildFolderTree } from '~/utils/file-tree'
+import { buildFolderTree, collectFolderPaths, countFilesInFolder } from '~/utils/file-tree'
 import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import {
   deleteClientFile,
@@ -30,7 +30,8 @@ const uploading = ref(false)
 const downloading = ref(false)
 const uploadStatus = ref('')
 const error = ref('')
-const openFolders = ref<Set<string>>(new Set(['']))
+const success = ref('')
+const closedFolders = ref<Set<string>>(new Set())
 
 const clientIdValue = computed(() => String(props.clientId ?? ''))
 
@@ -49,6 +50,9 @@ const tree = computed(() => buildFolderTree(
   })),
 ))
 
+const totalFileCount = computed(() => countFilesInFolder(tree.value))
+const folderCount = computed(() => collectFolderPaths(tree.value).length)
+
 const remainingSlots = computed(() =>
   Math.max(0, DOCUMENT_ATTACHMENTS_MAX - attachments.value.length),
 )
@@ -56,6 +60,17 @@ const remainingSlots = computed(() =>
 const uploadDisabled = computed(() =>
   uploading.value || downloading.value || remainingSlots.value === 0 || !clientIdValue.value,
 )
+
+function expandAllFolders() {
+  closedFolders.value = new Set()
+}
+
+function toggleFolder(path: string) {
+  const next = new Set(closedFolders.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  closedFolders.value = next
+}
 
 function pickUploadableFiles(fileList: FileList | null): File[] {
   if (!fileList) return []
@@ -91,18 +106,24 @@ async function onFilesSelected(event: Event, fromFolder = false) {
 
   uploading.value = true
   error.value = ''
+  success.value = ''
   uploadStatus.value = ''
 
   try {
-    const added = fromFolder || files.length > 1
+    const { attachments: added, skipped } = fromFolder || files.length > 1
       ? await uploadClientFiles(clientIdValue.value, files, msg => {
           uploadStatus.value = msg
         })
-      : [await uploadClientFile(clientIdValue.value, files[0], msg => {
+      : { attachments: [await uploadClientFile(clientIdValue.value, files[0], msg => {
           uploadStatus.value = msg
-        })]
+        })], skipped: [] }
 
     attachments.value = [...attachments.value, ...added]
+    expandAllFolders()
+    const skippedNote = skipped.length
+      ? ` (${skipped.length} skipped — blocked or empty)`
+      : ''
+    success.value = `Uploaded ${added.length} file${added.length === 1 ? '' : 's'}${skippedNote}`
   }
   catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Upload failed'
@@ -111,13 +132,6 @@ async function onFilesSelected(event: Event, fromFolder = false) {
     uploading.value = false
     uploadStatus.value = ''
   }
-}
-
-function toggleFolder(path: string) {
-  const next = new Set(openFolders.value)
-  if (next.has(path)) next.delete(path)
-  else next.add(path)
-  openFolders.value = next
 }
 
 function findAttachment(file: FileTreeItem): DocumentAttachment | undefined {
@@ -179,6 +193,12 @@ async function removeAttachment(attachment: DocumentAttachment) {
     error.value = 'Failed to remove file'
   }
 }
+
+watch(
+  () => attachments.value.length,
+  () => expandAllFolders(),
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -187,6 +207,7 @@ async function removeAttachment(attachment: DocumentAttachment) {
       <span class="attachments-label">Attachments</span>
       <span v-if="attachments.length > 0" class="text-muted count">
         {{ attachments.length }} / {{ DOCUMENT_ATTACHMENTS_MAX }}
+        <template v-if="folderCount > 0"> · {{ folderCount }} folder{{ folderCount === 1 ? '' : 's' }}</template>
       </span>
     </div>
 
@@ -194,7 +215,7 @@ async function removeAttachment(attachment: DocumentAttachment) {
       <VaultFolderTreeNode
         :node="tree"
         :can-write="!readonly"
-        :open-folders="openFolders"
+        :closed-folders="closedFolders"
         :downloading="downloading"
         @toggle-folder="toggleFolder"
         @download-file="downloadFileItem"
@@ -234,10 +255,11 @@ async function removeAttachment(attachment: DocumentAttachment) {
           :disabled="uploading || downloading"
           @click="downloadFolder(tree)"
         >
-          {{ downloading ? uploadStatus || 'Downloading…' : 'Download all' }}
+          {{ downloading ? uploadStatus || 'Downloading…' : `Download all (${totalFileCount})` }}
         </button>
       </div>
       <p v-if="uploading" class="status text-muted">{{ uploadStatus || 'Uploading…' }}</p>
+      <p v-if="success" class="success">{{ success }}</p>
       <p class="hint text-muted">{{ fileSizeLimitMessage() }} Save the document to keep attachments.</p>
     </template>
 
@@ -272,6 +294,9 @@ async function removeAttachment(attachment: DocumentAttachment) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.35rem 0.15rem 0.35rem 0;
 }
 
 .upload-actions {
@@ -313,6 +338,12 @@ async function removeAttachment(attachment: DocumentAttachment) {
 }
 
 .empty {
+  font-size: 0.8125rem;
+}
+
+.success {
+  margin: 0;
+  color: var(--primary);
   font-size: 0.8125rem;
 }
 

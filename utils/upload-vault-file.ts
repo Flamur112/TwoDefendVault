@@ -1,10 +1,18 @@
-import type { VaultFileRecord } from '~/types/vault-file'
 import { FILE_MAX_BYTES } from '~/utils/file-limits'
+import { CLIENT_FOLDER_UPLOAD_MAX } from '~/utils/file-path'
+import type { VaultFileRecord } from '~/types/vault-file'
+import {
+  chunkArray,
+  fileRelativePath,
+  partitionUploadFiles,
+  type SkippedUploadFile,
+} from '~/utils/file-validation'
 import { downloadFilesAsZip } from '~/utils/folder-zip'
 
 const UPLOAD_CONCURRENCY = 4
 
 interface UploadUrlEntry {
+  clientIndex: number
   fileId: string
   signedUrl: string
   token: string
@@ -15,6 +23,7 @@ interface UploadUrlEntry {
 
 interface BatchUploadResponse {
   uploads: UploadUrlEntry[]
+  skipped?: Array<{ clientIndex: number, filename: string, reason: string }>
 }
 
 export async function listVaultFiles(vaultId: string): Promise<VaultFileRecord[]> {
@@ -40,57 +49,96 @@ async function uploadFileToSignedUrl(file: File, entry: UploadUrlEntry): Promise
 async function runWithConcurrency<T>(
   items: T[],
   concurrency: number,
-  worker: (item: T, index: number) => Promise<void>,
+  worker: (item: T) => Promise<void>,
 ): Promise<void> {
   let index = 0
   const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (index < items.length) {
       const current = index++
-      await worker(items[current], current)
+      await worker(items[current])
     }
   })
   await Promise.all(runners)
+}
+
+async function uploadPreparedVaultBatch(
+  vaultId: string,
+  files: File[],
+  onProgress?: (message: string) => void,
+): Promise<{ pairs: Array<{ entry: UploadUrlEntry, file: File }>, skipped: SkippedUploadFile[] }> {
+  const payload = files.map((file, clientIndex) => ({
+    clientIndex,
+    filename: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+    relativePath: fileRelativePath(file),
+  }))
+
+  const { uploads, skipped: serverSkipped = [] } = await $fetch<BatchUploadResponse>(
+    `/api/vaults/${vaultId}/files/upload-url`,
+    { method: 'POST', body: { files: payload } },
+  )
+
+  if (!uploads?.length) {
+    throw new Error('Upload preparation failed')
+  }
+
+  const fileByIndex = new Map(files.map((file, index) => [index, file]))
+  const pairs = uploads.map((entry) => {
+    const file = fileByIndex.get(entry.clientIndex)
+    if (!file) {
+      throw new Error(`Upload mapping failed for ${entry.filename}`)
+    }
+    return { entry, file }
+  })
+
+  let completed = 0
+  await runWithConcurrency(pairs, UPLOAD_CONCURRENCY, async ({ entry, file }) => {
+    completed += 1
+    onProgress?.(`Uploading ${entry.relativePath || entry.filename} (${completed}/${pairs.length})…`)
+    await uploadFileToSignedUrl(file, entry)
+  })
+
+  return {
+    pairs,
+    skipped: serverSkipped.map(item => ({
+      name: item.filename,
+      relativePath: item.filename,
+      reason: item.reason,
+    })),
+  }
 }
 
 export async function uploadVaultFiles(
   vaultId: string,
   files: File[],
   onProgress?: (message: string) => void,
-): Promise<VaultFileRecord[]> {
-  if (files.length === 0) return []
-
-  for (const file of files) {
-    if (file.size > FILE_MAX_BYTES) {
-      throw new Error(`${file.name} exceeds the ${FILE_MAX_BYTES / (1024 * 1024)} MB limit`)
-    }
+): Promise<{ files: VaultFileRecord[], skipped: SkippedUploadFile[] }> {
+  if (files.length === 0) {
+    return { files: [], skipped: [] }
   }
 
-  onProgress?.('Preparing uploads…')
+  const { uploadable, skipped } = partitionUploadFiles(files, FILE_MAX_BYTES)
+  if (uploadable.length === 0) {
+    throw new Error(skipped[0]?.reason ?? 'No uploadable files selected')
+  }
 
-  const payload = files.map((file) => {
-    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-      || file.name
-    return {
-      filename: file.name,
-      mime: file.type || 'application/octet-stream',
-      size: file.size,
-      relativePath,
-    }
-  })
+  const batches = chunkArray(uploadable, CLIENT_FOLDER_UPLOAD_MAX)
+  const allPairs: Array<{ entry: UploadUrlEntry, file: File }> = []
+  const allSkipped = [...skipped]
 
-  const { uploads } = await $fetch<BatchUploadResponse>(
-    `/api/vaults/${vaultId}/files/upload-url`,
-    { method: 'POST', body: { files: payload } },
-  )
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const batch = batches[batchIndex]
+    onProgress?.(
+      batches.length > 1
+        ? `Preparing batch ${batchIndex + 1} of ${batches.length} (${batch.length} files)…`
+        : 'Preparing uploads…',
+    )
 
-  const pairs = uploads.map((entry, idx) => ({ entry, file: files[idx] }))
-  let completed = 0
-
-  await runWithConcurrency(pairs, UPLOAD_CONCURRENCY, async ({ entry, file }) => {
-    onProgress?.(`Uploading ${entry.relativePath || entry.filename} (${completed + 1}/${pairs.length})…`)
-    await uploadFileToSignedUrl(file, entry)
-    completed += 1
-  })
+    const result = await uploadPreparedVaultBatch(vaultId, batch, onProgress)
+    allPairs.push(...result.pairs)
+    allSkipped.push(...result.skipped)
+  }
 
   onProgress?.('Saving file list…')
 
@@ -99,7 +147,7 @@ export async function uploadVaultFiles(
     {
       method: 'POST',
       body: {
-        files: pairs.map(({ entry, file }) => ({
+        files: allPairs.map(({ entry, file }) => ({
           fileId: entry.fileId,
           filename: entry.filename,
           mime: entry.mime,
@@ -110,7 +158,7 @@ export async function uploadVaultFiles(
     },
   )
 
-  return registered
+  return { files: registered, skipped: allSkipped }
 }
 
 export async function getVaultFileDownloadUrl(vaultId: string, fileId: string): Promise<string> {

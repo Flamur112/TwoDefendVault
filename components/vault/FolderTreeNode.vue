@@ -2,7 +2,7 @@
 import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import { attachmentFileLabel } from '~/utils/document-attachments'
 import { formatFileSize } from '~/utils/file-limits'
-import { folderLabel } from '~/utils/file-tree'
+import { countFilesInFolder, folderLabel } from '~/utils/file-tree'
 
 const emit = defineEmits<{
   toggleFolder: [path: string]
@@ -14,12 +14,15 @@ const emit = defineEmits<{
 const props = withDefaults(defineProps<{
   node: FolderNode
   canWrite?: boolean
-  openFolders: Set<string>
+  closedFolders: Set<string>
   downloading?: boolean
   depth?: number
 }>(), {
   depth: 0,
 })
+
+const folderFileCount = computed(() => countFilesInFolder(props.node))
+const isOpen = computed(() => !props.node.path || !props.closedFolders.has(props.node.path))
 </script>
 
 <template>
@@ -30,8 +33,9 @@ const props = withDefaults(defineProps<{
     >
       <div v-if="node.path" class="folder-row">
         <button type="button" class="folder-toggle" @click="emit('toggleFolder', node.path)">
-          <span class="chevron">{{ openFolders.has(node.path) ? '▾' : '▸' }}</span>
+          <span class="chevron">{{ isOpen ? '▾' : '▸' }}</span>
           <span class="folder-name">{{ folderLabel(node.path) }}</span>
+          <span class="text-muted folder-count">{{ folderFileCount }} file{{ folderFileCount === 1 ? '' : 's' }}</span>
         </button>
         <button
           type="button"
@@ -43,7 +47,7 @@ const props = withDefaults(defineProps<{
         </button>
       </div>
 
-      <template v-if="!node.path || openFolders.has(node.path)">
+      <template v-if="isOpen">
         <ul v-if="node.files.length > 0" class="file-list">
           <li v-for="file in node.files" :key="file.id" class="file-row">
             <button type="button" class="file-link" @click="emit('downloadFile', file)">
@@ -67,7 +71,7 @@ const props = withDefaults(defineProps<{
           :key="child.path"
           :node="child"
           :can-write="canWrite"
-          :open-folders="openFolders"
+          :closed-folders="closedFolders"
           :downloading="downloading"
           :depth="props.depth + 1"
           @toggle-folder="emit('toggleFolder', $event)"
@@ -111,6 +115,11 @@ const props = withDefaults(defineProps<{
 .folder-name {
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.folder-count {
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 
 .chevron {

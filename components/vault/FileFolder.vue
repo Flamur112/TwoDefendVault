@@ -2,7 +2,7 @@
 import type { VaultFileRecord } from '~/types/vault-file'
 import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import { fileSizeLimitMessage } from '~/utils/file-limits'
-import { buildVaultFolderTree } from '~/utils/vault-file-tree'
+import { buildVaultFolderTree, countFilesInFolder } from '~/utils/vault-file-tree'
 import {
   deleteVaultFile,
   downloadVaultFile,
@@ -23,12 +23,18 @@ const uploading = ref(false)
 const downloading = ref(false)
 const uploadStatus = ref('')
 const error = ref('')
+const success = ref('')
 const expanded = ref(false)
-const openFolders = ref<Set<string>>(new Set(['']))
+const closedFolders = ref<Set<string>>(new Set())
 
 const tree = computed(() => buildVaultFolderTree(files.value))
 const hasFiles = computed(() => files.value.length > 0)
+const totalFileCount = computed(() => countFilesInFolder(tree.value))
 const uploadDisabled = computed(() => uploading.value || downloading.value)
+
+function expandAllFolders() {
+  closedFolders.value = new Set()
+}
 
 function pickUploadableFiles(fileList: FileList | null): File[] {
   if (!fileList) return []
@@ -40,6 +46,7 @@ async function loadFiles() {
   error.value = ''
   try {
     files.value = await listVaultFiles(props.vaultId)
+    expandAllFolders()
   }
   catch {
     error.value = 'Failed to load files'
@@ -57,10 +64,10 @@ async function toggleExpanded() {
 }
 
 function toggleFolder(path: string) {
-  const next = new Set(openFolders.value)
+  const next = new Set(closedFolders.value)
   if (next.has(path)) next.delete(path)
   else next.add(path)
-  openFolders.value = next
+  closedFolders.value = next
 }
 
 async function onFilesSelected(event: Event) {
@@ -74,13 +81,19 @@ async function onFilesSelected(event: Event) {
 
   uploading.value = true
   error.value = ''
+  success.value = ''
   uploadStatus.value = ''
   try {
-    const added = await uploadVaultFiles(props.vaultId, selected, msg => {
+    const { files: added, skipped } = await uploadVaultFiles(props.vaultId, selected, msg => {
       uploadStatus.value = msg
     })
     files.value = [...files.value, ...added]
+    expandAllFolders()
     expanded.value = true
+    const skippedNote = skipped.length
+      ? ` (${skipped.length} skipped — blocked or empty)`
+      : ''
+    success.value = `Uploaded ${added.length} file${added.length === 1 ? '' : 's'}${skippedNote}`
   }
   catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Upload failed'
@@ -162,7 +175,7 @@ onMounted(() => {
           <VaultFolderTreeNode
             :node="tree"
             :can-write="canWrite"
-            :open-folders="openFolders"
+            :closed-folders="closedFolders"
             :downloading="downloading"
             @toggle-folder="toggleFolder"
             @download-file="downloadFile"
@@ -200,12 +213,13 @@ onMounted(() => {
             :disabled="uploading || downloading"
             @click="downloadFolder(tree)"
           >
-            {{ downloading ? uploadStatus || 'Downloading…' : 'Download all' }}
+            {{ downloading ? uploadStatus || 'Downloading…' : `Download all (${totalFileCount})` }}
           </button>
         </div>
 
         <p v-if="canWrite" class="hint text-muted">{{ fileSizeLimitMessage() }}</p>
         <p v-if="uploading" class="status text-muted">{{ uploadStatus || 'Uploading…' }}</p>
+        <p v-if="success" class="success">{{ success }}</p>
       </template>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -264,6 +278,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.35rem 0.15rem 0.35rem 0;
 }
 
 .upload-actions {
@@ -299,9 +316,14 @@ onMounted(() => {
 
 .hint,
 .status,
-.empty {
+.empty,
+.success {
   margin: 0;
   font-size: 0.75rem;
+}
+
+.success {
+  color: var(--primary);
 }
 
 .error {

@@ -1,13 +1,21 @@
 import { FILE_MAX_BYTES } from '~/utils/file-limits'
+import { CLIENT_FOLDER_UPLOAD_MAX } from '~/utils/file-path'
 import type { DocumentAttachment } from '~/utils/document-attachments'
 import { attachmentRelativePath } from '~/utils/document-attachments'
 import { downloadFilesAsZip } from '~/utils/folder-zip'
 import { filesInFolder } from '~/utils/file-tree'
 import type { FolderNode } from '~/types/file-tree'
+import {
+  chunkArray,
+  fileRelativePath,
+  partitionUploadFiles,
+  type SkippedUploadFile,
+} from '~/utils/file-validation'
 
 const UPLOAD_CONCURRENCY = 4
 
 interface UploadUrlEntry {
+  clientIndex: number
   fileId: string
   signedUrl: string
   token: string
@@ -22,10 +30,16 @@ interface UploadUrlResponse extends UploadUrlEntry {
 
 interface BatchUploadResponse {
   uploads: UploadUrlEntry[]
+  skipped?: Array<{ clientIndex: number, filename: string, reason: string }>
 }
 
 interface DownloadUrlResponse {
   url: string
+}
+
+export interface ClientUploadResult {
+  attachments: DocumentAttachment[]
+  skipped: SkippedUploadFile[]
 }
 
 async function uploadFileToSignedUrl(file: File, entry: UploadUrlEntry): Promise<void> {
@@ -47,13 +61,13 @@ async function uploadFileToSignedUrl(file: File, entry: UploadUrlEntry): Promise
 async function runWithConcurrency<T>(
   items: T[],
   concurrency: number,
-  worker: (item: T, index: number) => Promise<void>,
+  worker: (item: T) => Promise<void>,
 ): Promise<void> {
   let index = 0
   const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (index < items.length) {
       const current = index++
-      await worker(items[current], current)
+      await worker(items[current])
     }
   })
   await Promise.all(runners)
@@ -70,14 +84,65 @@ function buildAttachment(entry: UploadUrlEntry, file: File): DocumentAttachment 
   }
 }
 
+async function uploadPreparedBatch(
+  clientId: string,
+  files: File[],
+  onProgress?: (message: string) => void,
+): Promise<{ attachments: DocumentAttachment[], skipped: SkippedUploadFile[] }> {
+  const payload = files.map((file, clientIndex) => ({
+    clientIndex,
+    filename: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+    relativePath: fileRelativePath(file),
+  }))
+
+  const { uploads, skipped: serverSkipped = [] } = await $fetch<BatchUploadResponse>(
+    `/api/clients/${clientId}/files/upload-url`,
+    { method: 'POST', body: { files: payload } },
+  )
+
+  if (!uploads?.length) {
+    throw new Error('Upload preparation failed')
+  }
+
+  const fileByIndex = new Map(files.map((file, index) => [index, file]))
+  const pairs = uploads.map((entry) => {
+    const file = fileByIndex.get(entry.clientIndex)
+    if (!file) {
+      throw new Error(`Upload mapping failed for ${entry.filename}`)
+    }
+    return { entry, file }
+  })
+
+  let completed = 0
+  await runWithConcurrency(pairs, UPLOAD_CONCURRENCY, async ({ entry, file }) => {
+    completed += 1
+    onProgress?.(`Uploading ${entry.relativePath || entry.filename} (${completed}/${pairs.length})…`)
+    await uploadFileToSignedUrl(file, entry)
+  })
+
+  const skipped = serverSkipped.map(item => ({
+    name: item.filename,
+    relativePath: item.filename,
+    reason: item.reason,
+  }))
+
+  return {
+    attachments: pairs.map(({ entry, file }) => buildAttachment(entry, file)),
+    skipped,
+  }
+}
+
 /** Upload file direct to Supabase — server only mints the signed URL. */
 export async function uploadClientFile(
   clientId: string,
   file: File,
   onProgress?: (message: string) => void,
 ): Promise<DocumentAttachment> {
-  if (file.size > FILE_MAX_BYTES) {
-    throw new Error(`File must be under ${FILE_MAX_BYTES / (1024 * 1024)} MB`)
+  const { uploadable, skipped } = partitionUploadFiles([file], FILE_MAX_BYTES)
+  if (uploadable.length === 0) {
+    throw new Error(skipped[0]?.reason ?? 'File cannot be uploaded')
   }
 
   onProgress?.('Preparing upload…')
@@ -87,10 +152,11 @@ export async function uploadClientFile(
     {
       method: 'POST',
       body: {
+        clientIndex: 0,
         filename: file.name,
         mime: file.type || 'application/octet-stream',
         size: file.size,
-        relativePath: file.name,
+        relativePath: fileRelativePath(file),
       },
     },
   )
@@ -105,53 +171,34 @@ export async function uploadClientFiles(
   clientId: string,
   files: File[],
   onProgress?: (message: string) => void,
-): Promise<DocumentAttachment[]> {
-  if (files.length === 0) return []
+): Promise<ClientUploadResult> {
+  if (files.length === 0) {
+    return { attachments: [], skipped: [] }
+  }
 
-  const uploadable = files.filter((file) => {
-    if (file.size <= 0) return false
-    if (file.size > FILE_MAX_BYTES) {
-      throw new Error(`${file.name} exceeds the ${FILE_MAX_BYTES / (1024 * 1024)} MB limit`)
-    }
-    return true
-  })
-
+  const { uploadable, skipped } = partitionUploadFiles(files, FILE_MAX_BYTES)
   if (uploadable.length === 0) {
-    throw new Error('No uploadable files selected')
+    throw new Error(skipped[0]?.reason ?? 'No uploadable files selected')
   }
 
-  onProgress?.('Preparing uploads…')
+  const batches = chunkArray(uploadable, CLIENT_FOLDER_UPLOAD_MAX)
+  const attachments: DocumentAttachment[] = []
+  const allSkipped = [...skipped]
 
-  const payload = uploadable.map((file) => {
-    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-      || file.name
-    return {
-      filename: file.name,
-      mime: file.type || 'application/octet-stream',
-      size: file.size,
-      relativePath,
-    }
-  })
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const batch = batches[batchIndex]
+    onProgress?.(
+      batches.length > 1
+        ? `Preparing batch ${batchIndex + 1} of ${batches.length} (${batch.length} files)…`
+        : 'Preparing uploads…',
+    )
 
-  const { uploads } = await $fetch<BatchUploadResponse>(
-    `/api/clients/${clientId}/files/upload-url`,
-    { method: 'POST', body: { files: payload } },
-  )
-
-  if (!uploads?.length) {
-    throw new Error('Upload preparation failed')
+    const result = await uploadPreparedBatch(clientId, batch, onProgress)
+    attachments.push(...result.attachments)
+    allSkipped.push(...result.skipped)
   }
 
-  const pairs = uploads.map((entry, idx) => ({ entry, file: uploadable[idx] }))
-  let completed = 0
-
-  await runWithConcurrency(pairs, UPLOAD_CONCURRENCY, async ({ entry, file }) => {
-    onProgress?.(`Uploading ${entry.relativePath || entry.filename} (${completed + 1}/${pairs.length})…`)
-    await uploadFileToSignedUrl(file, entry)
-    completed += 1
-  })
-
-  return pairs.map(({ entry, file }) => buildAttachment(entry, file))
+  return { attachments, skipped: allSkipped }
 }
 
 export async function getClientFileDownloadUrl(
