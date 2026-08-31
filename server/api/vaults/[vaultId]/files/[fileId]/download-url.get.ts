@@ -1,10 +1,10 @@
-import { requireVaultAccess } from '../../../../utils/authorize'
-import { getSupabaseAdmin } from '../../../../utils/supabase'
+import { requireVaultAccess } from '../../../../../utils/authorize'
+import { getSupabaseAdmin } from '../../../../../utils/supabase'
 import {
   createVaultFileDownloadUrl,
   mapVaultFileRow,
-} from '../../../../utils/vault-files'
-import { isValidClientFileId } from '../../../../utils/client-files'
+} from '../../../../../utils/vault-files'
+import { isValidClientFileId } from '../../../../../utils/client-files'
 
 export default defineEventHandler(async (event) => {
   const vaultId = getRouterParam(event, 'vaultId')
