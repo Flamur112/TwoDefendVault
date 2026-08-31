@@ -1,6 +1,6 @@
-import { zip } from 'fflate'
 import type { VaultFileRecord } from '~/types/vault-file'
 import { FILE_MAX_BYTES } from '~/utils/file-limits'
+import { downloadFilesAsZip } from '~/utils/folder-zip'
 
 const UPLOAD_CONCURRENCY = 4
 
@@ -140,15 +140,6 @@ async function fetchDownloadEntries(
   return data.downloads
 }
 
-function triggerBlobDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
 export async function downloadVaultFolderZip(
   vaultId: string,
   folderPath: string,
@@ -162,31 +153,13 @@ export async function downloadVaultFolderZip(
     throw new Error('No files to download')
   }
 
-  const zipEntries: Record<string, Uint8Array> = {}
-  let index = 0
+  const entries = downloads.map(entry => ({
+    zipPath: entry.file.relativePath || entry.file.name,
+    url: entry.url,
+    label: entry.file.relativePath || entry.file.name,
+  }))
 
-  for (const entry of downloads) {
-    index += 1
-    onProgress?.(`Fetching ${entry.file.relativePath || entry.file.name} (${index}/${downloads.length})…`)
-    const response = await fetch(entry.url)
-    if (!response.ok) {
-      throw new Error(`Failed to download ${entry.file.name}`)
-    }
-    const buffer = new Uint8Array(await response.arrayBuffer())
-    const zipPath = entry.file.relativePath || entry.file.name
-    zipEntries[zipPath] = buffer
-  }
-
-  onProgress?.('Creating zip…')
-
-  const zipped = await new Promise<Uint8Array>((resolve, reject) => {
-    zip(zipEntries, (error, data) => {
-      if (error) reject(error)
-      else resolve(data)
-    })
-  })
-
-  triggerBlobDownload(new Blob([zipped], { type: 'application/zip' }), zipName)
+  await downloadFilesAsZip(entries, zipName, onProgress)
 }
 
 export async function downloadVaultFile(vaultId: string, file: VaultFileRecord): Promise<void> {

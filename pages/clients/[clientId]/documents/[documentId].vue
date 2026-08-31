@@ -250,6 +250,7 @@ watch(documentId, async () => {
           <DocumentsDocumentAttachments
             v-model="form.attachments"
             :client-id="clientId"
+            :document-title="form.title"
           />
           <p v-if="saveError" class="error">{{ saveError }}</p>
           <div class="form-actions">
@@ -265,6 +266,7 @@ watch(documentId, async () => {
             v-if="viewAttachments.length > 0"
             :model-value="viewAttachments"
             :client-id="clientId"
+            :document-title="record?.title"
             readonly
           />
           <p v-if="!record.notes?.trim() && !viewAttachments.length && record.metadata.url" class="legacy-note text-muted">

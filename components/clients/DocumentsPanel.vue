@@ -194,6 +194,7 @@ async function confirmDelete() {
           <DocumentsDocumentAttachments
             v-model="form.attachments"
             :client-id="clientId"
+            :document-title="form.title"
           />
           <div class="modal-actions">
             <button type="button" class="btn" @click="closeForm">Cancel</button>

@@ -3,10 +3,16 @@ export interface DocumentAttachment {
   name: string
   mime: string
   size: number
+  relativePath?: string
   uploadedAt?: string
 }
 
 export const DOCUMENT_ATTACHMENTS_KEY = 'attachments'
+export const DOCUMENT_ATTACHMENTS_MAX = 50
+
+export function attachmentRelativePath(attachment: DocumentAttachment): string {
+  return attachment.relativePath?.trim() || attachment.name
+}
 
 export function parseDocumentAttachments(metadata: Record<string, string>): DocumentAttachment[] {
   const raw = metadata[DOCUMENT_ATTACHMENTS_KEY]
@@ -31,7 +37,7 @@ export function parseDocumentAttachments(metadata: Record<string, string>): Docu
 }
 
 export function serializeDocumentAttachments(attachments: DocumentAttachment[]): string {
-  return JSON.stringify(attachments.slice(0, 50))
+  return JSON.stringify(attachments.slice(0, DOCUMENT_ATTACHMENTS_MAX))
 }
 
 export function parseDocumentAttachmentsFromRow(

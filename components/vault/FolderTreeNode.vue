@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import type { VaultFileRecord, VaultFolderNode } from '~/types/vault-file'
+import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import { attachmentFileLabel } from '~/utils/document-attachments'
 import { formatFileSize } from '~/utils/file-limits'
-import { folderLabel } from '~/utils/vault-file-tree'
+import { folderLabel } from '~/utils/file-tree'
 
 const emit = defineEmits<{
   toggleFolder: [path: string]
-  downloadFile: [file: VaultFileRecord]
-  downloadFolder: [node: VaultFolderNode]
-  removeFile: [file: VaultFileRecord]
+  downloadFile: [file: FileTreeItem]
+  downloadFolder: [node: FolderNode]
+  removeFile: [file: FileTreeItem]
 }>()
 
 const props = withDefaults(defineProps<{
-  node: VaultFolderNode
+  node: FolderNode
   canWrite?: boolean
   openFolders: Set<string>
   downloading?: boolean

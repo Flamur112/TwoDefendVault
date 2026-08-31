@@ -5,29 +5,15 @@ import {
   isValidClientFileId,
   sanitizeFilename,
 } from './client-files'
+import { fileNameFromRelativePath, sanitizeRelativePath } from '../../utils/file-path'
 
 export const VAULT_FILES_MAX = 500
 export const VAULT_FOLDER_UPLOAD_MAX = 100
 
+export { sanitizeRelativePath, fileNameFromRelativePath }
+
 export function vaultFileStoragePath(orgId: string, vaultId: string, fileId: string): string {
   return `${orgId}/vaults/${vaultId}/${fileId}`
-}
-
-export function sanitizeRelativePath(relativePath: string): string {
-  return relativePath
-    .replace(/\\/g, '/')
-    .split('/')
-    .map(part => part.replace(/[^\w\s.-]/g, '').trim())
-    .filter(Boolean)
-    .slice(0, 20)
-    .join('/')
-    .slice(0, 500)
-}
-
-export function fileNameFromRelativePath(relativePath: string, fallback: string): string {
-  const parts = relativePath.split('/').filter(Boolean)
-  const last = parts[parts.length - 1]
-  return sanitizeFilename(last || fallback)
 }
 
 export function validateVaultFileInput(
