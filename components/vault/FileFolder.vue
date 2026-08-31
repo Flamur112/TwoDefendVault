@@ -1,0 +1,291 @@
+<script setup lang="ts">
+import type { VaultFileRecord, VaultFolderNode } from '~/types/vault-file'
+import { fileSizeLimitMessage } from '~/utils/file-limits'
+import { buildVaultFolderTree } from '~/utils/vault-file-tree'
+import {
+  deleteVaultFile,
+  downloadVaultFile,
+  downloadVaultFolderZip,
+  listVaultFiles,
+  uploadVaultFiles,
+} from '~/utils/upload-vault-file'
+
+const props = defineProps<{
+  vaultId: string
+  vaultName: string
+  canWrite?: boolean
+}>()
+
+const files = ref<VaultFileRecord[]>([])
+const loading = ref(true)
+const uploading = ref(false)
+const downloading = ref(false)
+const uploadStatus = ref('')
+const error = ref('')
+const expanded = ref(false)
+const openFolders = ref<Set<string>>(new Set(['']))
+
+const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+
+const tree = computed(() => buildVaultFolderTree(files.value))
+const hasFiles = computed(() => files.value.length > 0)
+
+async function loadFiles() {
+  loading.value = true
+  error.value = ''
+  try {
+    files.value = await listVaultFiles(props.vaultId)
+  }
+  catch {
+    error.value = 'Failed to load files'
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+async function toggleExpanded() {
+  expanded.value = !expanded.value
+  if (expanded.value && files.value.length === 0 && !loading.value) {
+    await loadFiles()
+  }
+}
+
+function isFolderOpen(path: string): boolean {
+  return openFolders.value.has(path)
+}
+
+function toggleFolder(path: string) {
+  const next = new Set(openFolders.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  openFolders.value = next
+}
+
+async function onFilesSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selected = input.files ? [...input.files] : []
+  input.value = ''
+  if (selected.length === 0) return
+
+  uploading.value = true
+  error.value = ''
+  try {
+    const added = await uploadVaultFiles(props.vaultId, selected, msg => {
+      uploadStatus.value = msg
+    })
+    files.value = [...files.value, ...added]
+    expanded.value = true
+  }
+  catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Upload failed'
+  }
+  finally {
+    uploading.value = false
+    uploadStatus.value = ''
+  }
+}
+
+async function removeFile(file: VaultFileRecord) {
+  if (!confirm(`Remove ${file.relativePath || file.name}?`)) return
+  error.value = ''
+  try {
+    await deleteVaultFile(props.vaultId, file.id)
+    files.value = files.value.filter(item => item.id !== file.id)
+  }
+  catch {
+    error.value = 'Failed to remove file'
+  }
+}
+
+async function downloadFile(file: VaultFileRecord) {
+  try {
+    await downloadVaultFile(props.vaultId, file)
+  }
+  catch {
+    error.value = 'Failed to download file'
+  }
+}
+
+async function downloadFolder(node: VaultFolderNode) {
+  downloading.value = true
+  error.value = ''
+  try {
+    const zipName = node.path
+      ? `${props.vaultName}-${node.name}.zip`
+      : `${props.vaultName}-files.zip`
+    await downloadVaultFolderZip(props.vaultId, node.path, zipName, msg => {
+      uploadStatus.value = msg
+    })
+  }
+  catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Download failed'
+  }
+  finally {
+    downloading.value = false
+    uploadStatus.value = ''
+  }
+}
+
+onMounted(() => {
+  if (expanded.value) loadFiles()
+})
+</script>
+
+<template>
+  <div class="vault-files">
+    <button type="button" class="vault-files-toggle" @click="toggleExpanded">
+      <span class="chevron" aria-hidden="true">{{ expanded ? '▾' : '▸' }}</span>
+      <span class="label">Files &amp; folders</span>
+      <span v-if="hasFiles" class="text-muted count">{{ files.length }}</span>
+      <span v-else-if="!loading" class="text-muted count">empty</span>
+    </button>
+
+    <div v-if="expanded" class="vault-files-body">
+      <p v-if="loading" class="text-muted">Loading files…</p>
+
+      <template v-else>
+        <div v-if="hasFiles" class="folder-tree">
+          <VaultFolderTreeNode
+            :node="tree"
+            :can-write="canWrite"
+            :open-folders="openFolders"
+            :downloading="downloading"
+            @toggle-folder="toggleFolder"
+            @download-file="downloadFile"
+            @download-folder="downloadFolder"
+            @remove-file="removeFile"
+          />
+        </div>
+        <p v-else class="text-muted empty">No files uploaded yet.</p>
+
+        <div v-if="canWrite" class="upload-actions">
+          <input
+            ref="fileInput"
+            type="file"
+            multiple
+            class="file-input"
+            @change="onFilesSelected"
+          >
+          <input
+            ref="folderInput"
+            type="file"
+            webkitdirectory
+            directory
+            multiple
+            class="file-input"
+            @change="onFilesSelected"
+          >
+          <button
+            type="button"
+            class="btn btn-sm"
+            :disabled="uploading || downloading"
+            @click="fileInput?.click()"
+          >
+            Upload file
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm"
+            :disabled="uploading || downloading"
+            @click="folderInput?.click()"
+          >
+            Upload folder
+          </button>
+          <button
+            v-if="hasFiles"
+            type="button"
+            class="btn btn-sm"
+            :disabled="uploading || downloading"
+            @click="downloadFolder(tree)"
+          >
+            {{ downloading ? uploadStatus || 'Downloading…' : 'Download all' }}
+          </button>
+        </div>
+
+        <p v-if="canWrite" class="hint text-muted">{{ fileSizeLimitMessage() }}</p>
+        <p v-if="uploading" class="status text-muted">{{ uploadStatus || 'Uploading…' }}</p>
+      </template>
+
+      <p v-if="error" class="error">{{ error }}</p>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.vault-files {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.vault-files-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vault-files-toggle:hover .label {
+  color: var(--primary);
+}
+
+.chevron {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.count {
+  font-size: 0.75rem;
+}
+
+.vault-files-body {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.folder-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.file-input {
+  display: none;
+}
+
+.hint,
+.status,
+.empty {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+</style>

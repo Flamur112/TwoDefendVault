@@ -15,7 +15,7 @@ const errorMessage = computed(() => {
     return 'Your account has been deactivated. Contact an administrator.'
   }
   if (route.query.error === 'not_invited') {
-    return 'You are not authorized to sign in. Ask an administrator to add your account first.'
+    return 'You are not authorized to sign in.'
   }
   if (route.query.error === 'domain_not_allowed') {
     return 'Sign-in is restricted to approved company email addresses.'

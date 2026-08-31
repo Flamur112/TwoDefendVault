@@ -2,6 +2,7 @@ import { requireVaultAccess } from '../../../utils/authorize'
 import { auditFromEvent } from '../../../utils/audit'
 import { logClientActivity } from '../../../utils/clients'
 import { getSupabaseAdmin } from '../../../utils/supabase'
+import { deleteAllVaultFiles } from '../../../utils/vault-files'
 
 export default defineEventHandler(async (event) => {
   const vaultId = getRouterParam(event, 'vaultId')
@@ -22,6 +23,8 @@ export default defineEventHandler(async (event) => {
   if (!vault) {
     throw createError({ statusCode: 404, statusMessage: 'Vault not found' })
   }
+
+  await deleteAllVaultFiles(user.orgId, vaultId)
 
   const { error } = await supabase.from('vaults').delete().eq('id', vaultId)
   if (error) {

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@nuxtjs/supabase": "^2.0.10",
+    "fflate": "^0.8.3",
     "marked": "^15.0.12",
     "nuxt": "^3.21.11",
     "nuxt-security": "^2.6.0",

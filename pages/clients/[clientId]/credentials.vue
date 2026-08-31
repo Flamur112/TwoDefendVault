@@ -263,6 +263,11 @@ async function confirmDeleteVault() {
         >
           + Add to {{ vault.name }}
         </button>
+        <VaultFileFolder
+          :vault-id="vault.id"
+          :vault-name="vault.name"
+          :can-write="canWrite"
+        />
       </section>
     </div>
 

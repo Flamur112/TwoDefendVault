@@ -130,7 +130,7 @@ export async function resolveUserFromIdentity(
 
   throw new LoginAccessError(
     'not_invited',
-    'Your account is not authorized. Ask an administrator to add you in Admin → Users.',
+    'Your account is not authorized.',
   )
 }
 
