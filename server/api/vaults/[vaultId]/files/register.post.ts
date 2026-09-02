@@ -1,14 +1,13 @@
 import { requireVaultAccess } from '../../../../utils/authorize'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 import {
-  fileNameFromRelativePath,
   mapVaultFileRow,
-  sanitizeRelativePath,
   validateVaultFileInput,
   VAULT_FILES_MAX,
 } from '../../../../utils/vault-files'
 import { isValidClientFileId, sanitizeFilename } from '../../../../utils/client-files'
 import { FILE_MAX_BYTES } from '../../../../../utils/file-limits'
+import { fileNameFromRelativePath, sanitizeRelativePath } from '../../../../../utils/file-path'
 
 interface RegisterEntry {
   fileId?: string

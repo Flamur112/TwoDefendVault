@@ -5,11 +5,11 @@ import {
   type AuditLogRecord,
 } from '~/types/audit'
 import {
-  AUDIT_RETENTION_DAYS,
   AUDIT_TARGET_TYPE_LABELS,
   formatAuditMetadata,
   formatAuditTimestamp,
 } from '~/utils/audit-display'
+import { AUDIT_RETENTION_DAYS } from '~/utils/retention'
 
 definePageMeta({ middleware: 'auth' })
 

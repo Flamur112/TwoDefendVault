@@ -78,7 +78,7 @@
 
     <div class="right">
       <div ref="menuRef" class="user-menu">
-        <button type="button" class="user-btn" aria-expanded="open" @click.stop="open = !open">
+        <button type="button" class="user-btn" :aria-expanded="open" @click.stop="open = !open">
           <UiUserAvatar
             :name="user?.displayName || user?.email || 'Account'"
             :avatar-url="user?.avatarUrl"

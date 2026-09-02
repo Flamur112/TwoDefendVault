@@ -1,6 +1,7 @@
 import { getIdentityProvider } from '../../utils/identity'
 import { verifySignedOAuthState } from '../../utils/oauth-state'
-import { getOrganizationId, LoginAccessError, resolveUserFromIdentity } from '../../utils/provision'
+import { getOrganizationId, resolveUserFromIdentity } from '../../utils/provision'
+import { LoginAccessError } from '../../utils/auth-access'
 import { auditFromEvent } from '../../utils/audit'
 import { createSession } from '../../utils/session'
 import { recordUserLogin } from '../../utils/user-login'

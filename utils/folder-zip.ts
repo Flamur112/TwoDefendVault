@@ -39,10 +39,10 @@ export async function downloadFilesAsZip(
 
   onProgress?.('Creating zip…')
 
-  const zipped = await new Promise<Uint8Array>((resolve, reject) => {
+  const zipped = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
     zip(zipEntries, (error, data) => {
       if (error) reject(error)
-      else resolve(data)
+      else resolve(data as Uint8Array<ArrayBuffer>)
     })
   })
 

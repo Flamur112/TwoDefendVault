@@ -1,6 +1,6 @@
 import { requireAuth, getAccessibleVaults } from '../utils/authorize'
 import { countUserFavorites, listUserFavoriteClients } from '../utils/client-favorites'
-import { activityCutoffIso } from '../utils/clients'
+import { activityCutoffIso } from '../../utils/retention'
 import { maybeRunRetentionPurge } from '../utils/retention-purge'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'

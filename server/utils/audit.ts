@@ -1,9 +1,7 @@
 import type { H3Event } from 'h3'
 import type { SessionUser } from './session'
-import { AUDIT_RETENTION_DAYS } from './retention-purge'
 import { getSupabaseAdmin } from './supabase'
-
-export { AUDIT_RETENTION_DAYS }
+import { AUDIT_RETENTION_DAYS } from '../../utils/retention'
 
 const SENSITIVE_KEY = /password|secret|token|encrypted|credential|totp|key/i
 

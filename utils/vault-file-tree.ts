@@ -1,7 +1,6 @@
 import type { VaultFileRecord } from '~/types/vault-file'
-import { buildFolderTree, collectFolderPaths, countFilesInFolder, filesInFolder, folderLabel } from '~/utils/file-tree'
+import { buildFolderTree, collectFolderPaths } from '~/utils/file-tree'
 
-export { filesInFolder, folderLabel, collectFolderPaths, countFilesInFolder }
 export type { FolderNode as VaultFolderNode } from '~/types/file-tree'
 
 export function buildVaultFolderTree(files: VaultFileRecord[]) {

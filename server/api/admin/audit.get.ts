@@ -1,5 +1,6 @@
 import { requireRole } from '../../utils/authorize'
-import { AUDIT_RETENTION_DAYS, enrichAuditLogs, mapAuditLogRow } from '../../utils/audit'
+import { enrichAuditLogs, mapAuditLogRow } from '../../utils/audit'
+import { AUDIT_RETENTION_DAYS } from '../../../utils/retention'
 import { maybeRunRetentionPurge } from '../../utils/retention-purge'
 import { getSupabaseAdmin } from '../../utils/supabase'
 

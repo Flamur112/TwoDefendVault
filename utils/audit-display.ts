@@ -1,10 +1,3 @@
-/** Audit logs are kept for this many days (displayed to admins; purge job uses the same value). */
-export {
-  ACTIVITY_RETENTION_DAYS,
-  AUDIT_RETENTION_DAYS,
-  SESSION_RETENTION_DAYS,
-} from '~/utils/retention'
-
 export const AUDIT_TARGET_TYPE_LABELS: Record<string, string> = {
   user: 'User account',
   vault: 'Vault',

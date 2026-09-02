@@ -4,13 +4,12 @@ import { requireVaultAccess } from '../../../../utils/authorize'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 import {
   createVaultFileUploadUrl,
-  fileNameFromRelativePath,
-  sanitizeRelativePath,
   validateVaultFileInput,
   VAULT_FILES_MAX,
   VAULT_FOLDER_UPLOAD_MAX,
 } from '../../../../utils/vault-files'
 import { sanitizeFilename } from '../../../../utils/client-files'
+import { fileNameFromRelativePath, sanitizeRelativePath } from '../../../../../utils/file-path'
 
 interface UploadRequest {
   clientIndex?: number

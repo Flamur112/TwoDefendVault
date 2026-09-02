@@ -81,6 +81,7 @@ export function replaceProjectUpdate(
   if (index === -1) return false
 
   const existing = updates[index]
+  if (!existing) return false
   if (existing.userId !== user.id) {
     throw createError({ statusCode: 403, statusMessage: 'You can only edit your own updates' })
   }

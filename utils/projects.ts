@@ -31,8 +31,8 @@ export interface ProjectTimeline {
   tone: 'ok' | 'warning' | 'overdue' | 'done' | 'none'
 }
 
-export interface ProjectViewModel {
-  record: ClientSectionRecord
+export interface ProjectViewModel<TRecord extends ClientSectionRecord = ClientSectionRecord> {
+  record: TRecord
   status: string
   assignees: ProjectAssignee[]
   updates: ProjectUpdate[]
@@ -189,7 +189,9 @@ export function getProjectTimeline(record: ClientSectionRecord): ProjectTimeline
   return { percent, label, tone }
 }
 
-export function buildProjectViewModel(record: ClientSectionRecord): ProjectViewModel {
+export function buildProjectViewModel<TRecord extends ClientSectionRecord>(
+  record: TRecord,
+): ProjectViewModel<TRecord> {
   const updates = parseProjectUpdates(record.metadata)
   return {
     record,

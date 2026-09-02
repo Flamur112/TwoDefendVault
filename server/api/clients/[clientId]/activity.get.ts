@@ -1,6 +1,6 @@
 import { requireClientInOrg } from '../../../utils/client-map'
 import { getSupabaseAdmin } from '../../../utils/supabase'
-import { activityCutoffIso } from '../../../utils/clients'
+import { activityCutoffIso } from '../../../../utils/retention'
 import {
   ACTIVITY_DEFAULT_LIMIT,
   type ActivityFilter,

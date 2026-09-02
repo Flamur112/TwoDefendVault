@@ -22,7 +22,7 @@ export function extractDocumentImageIds(markdown: string | null | undefined): st
   const ids = new Set<string>()
   for (const match of markdown.matchAll(IMAGE_URL_PATTERN)) {
     const id = match[1]
-    if (isValidDocumentImageId(id)) ids.add(id)
+    if (id && isValidDocumentImageId(id)) ids.add(id)
   }
   return [...ids]
 }

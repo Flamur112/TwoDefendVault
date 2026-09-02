@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AUDIT_RETENTION_DAYS } from '~/utils/audit-display'
+import { AUDIT_RETENTION_DAYS } from '~/utils/retention'
 
 definePageMeta({ middleware: 'auth' })
 

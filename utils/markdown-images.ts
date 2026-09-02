@@ -1,6 +1,6 @@
+import { formatFileSize } from '~/utils/file-limits'
 import {
   IMAGE_MAX_UPLOAD_BYTES,
-  formatFileSize,
   imageInputLimitMessage,
 } from '~/utils/image-limits'
 import {
@@ -10,8 +10,6 @@ import {
 } from '~/utils/compress-image'
 
 export type ImageUploadStatus = 'checking' | 'compressing' | 'uploading'
-
-export { validateImageFile }
 
 export async function uploadImageForMarkdown(
   clientId: string,

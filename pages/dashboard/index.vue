@@ -7,12 +7,11 @@ const { user } = useSession()
 const apiFetch = useApiFetch()
 const { delightType, triggerLoginDelight } = useLoginDelight()
 
-const { data, pending, error } = useFetch<DashboardData>('/api/dashboard', {
-  key: 'dashboard',
-  lazy: true,
-  server: false,
-  $fetch: apiFetch,
-})
+const { data, pending, error } = useAsyncData<DashboardData>(
+  'dashboard',
+  () => apiFetch<DashboardData>('/api/dashboard'),
+  { lazy: true, server: false },
+)
 
 const greeting = computed(() => {
   const h = new Date().getHours()

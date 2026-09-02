@@ -58,7 +58,7 @@ export async function createClientFileUploadUrl(
     throw createError({ statusCode: 500, statusMessage: 'Failed to prepare upload' })
   }
 
-  return { path, ...data }
+  return { ...data, path }
 }
 
 export async function createClientFileDownloadUrl(

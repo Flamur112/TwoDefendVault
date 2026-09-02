@@ -49,12 +49,12 @@
 <script setup lang="ts">
 import type { ClientActivityEntry } from '~/types/client'
 import {
-  ACTIVITY_RETENTION_DAYS,
   type ActivityFilter,
   filterActivityEntries,
   getClientActivityActionLabel,
   getClientActivityDetail,
 } from '~/utils/client-activity'
+import { ACTIVITY_RETENTION_DAYS } from '~/utils/retention'
 
 const props = withDefaults(defineProps<{
   entries: ClientActivityEntry[]

@@ -5,12 +5,9 @@ import {
   isValidClientFileId,
   sanitizeFilename,
 } from './client-files'
-import { fileNameFromRelativePath, sanitizeRelativePath } from '../../utils/file-path'
 
 export const VAULT_FILES_MAX = 500
 export const VAULT_FOLDER_UPLOAD_MAX = 100
-
-export { sanitizeRelativePath, fileNameFromRelativePath }
 
 export function vaultFileStoragePath(orgId: string, vaultId: string, fileId: string): string {
   return `${orgId}/vaults/${vaultId}/${fileId}`
@@ -51,7 +48,7 @@ export async function createVaultFileUploadUrl(
     throw createError({ statusCode: 500, statusMessage: 'Failed to prepare upload' })
   }
 
-  return { path, ...data }
+  return { ...data, path }
 }
 
 export async function createVaultFileDownloadUrl(

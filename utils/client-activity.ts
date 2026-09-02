@@ -1,7 +1,6 @@
 import type { ClientActivityEntry } from '~/types/client'
 import { ACTIVITY_RETENTION_DAYS } from '~/utils/retention'
 
-export { ACTIVITY_RETENTION_DAYS }
 export const ACTIVITY_DEFAULT_LIMIT = 50
 export const ACTIVITY_PREVIEW_LIMIT = 10
 

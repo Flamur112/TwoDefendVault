@@ -8,7 +8,7 @@ import {
   outputNameForMime,
   validateImageFile,
 } from '~/utils/compress-image'
-import { formatFileSize } from '~/utils/image-limits'
+import { formatFileSize } from '~/utils/file-limits'
 
 export async function uploadClientLogo(clientId: string, file: File): Promise<{ url: string }> {
   validateImageFile(file)

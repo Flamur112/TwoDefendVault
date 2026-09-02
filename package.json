@@ -11,6 +11,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "typecheck": "nuxt prepare && npm run typecheck:server && npm run typecheck:app",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "typecheck:app": "vue-tsc --noEmit",
     "test:crypto": "tsx scripts/crypto-roundtrip.ts",
     "seed:vaults": "tsx scripts/seed-vaults.ts",
     "seed:clients": "tsx scripts/seed-clients.ts",
@@ -30,6 +33,10 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
-    "tsx": "^4.23.12"
+    "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.11"
   }
 }

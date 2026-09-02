@@ -1,0 +1,13 @@
+{
+  // Nuxt's generated server config includes the whole repo, which checks app
+  // files against Nitro globals. Narrowing to server/ means these files are
+  // checked with exactly the auto-imports Nitro provides at runtime, so an
+  // identifier that only exists as an app-side auto-import fails here instead
+  // of throwing a ReferenceError in production.
+  "extends": "./.nuxt/tsconfig.server.json",
+  "include": [
+    ".nuxt/types/nitro-nuxt.d.ts",
+    ".nuxt/types/nitro.d.ts",
+    "server/**/*"
+  ]
+}

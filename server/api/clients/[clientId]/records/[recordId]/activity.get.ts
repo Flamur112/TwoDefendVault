@@ -1,5 +1,5 @@
 import { requireClientInOrg } from '../../../../../utils/client-map'
-import { activityCutoffIso } from '../../../../../utils/clients'
+import { activityCutoffIso } from '../../../../../../utils/retention'
 import { getSupabaseAdmin } from '../../../../../utils/supabase'
 
 function matchesDocumentRecord(

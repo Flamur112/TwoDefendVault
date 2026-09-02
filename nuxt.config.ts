@@ -12,8 +12,6 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'TwoDefend Vault',
-      titleTemplate: titleChunk =>
-        titleChunk ? `${titleChunk} · TwoDefend Vault` : 'TwoDefend Vault',
       htmlAttrs: { lang: 'en' },
       meta: [
         { charset: 'utf-8' },
@@ -101,9 +99,6 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'netlify',
-    scheduledTasks: {
-      '0 4 * * *': ['retention:purge'],
-    },
     output: {
       publicDir: '.output/public',
     },

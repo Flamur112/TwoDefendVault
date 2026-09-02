@@ -8,15 +8,6 @@ import {
 } from '../../utils/retention'
 import { getSupabaseAdmin } from './supabase'
 
-export {
-  ACTIVITY_RETENTION_DAYS,
-  AUDIT_RETENTION_DAYS,
-  SESSION_RETENTION_DAYS,
-  activityCutoffIso,
-  auditCutoffIso,
-  sessionCutoffIso,
-}
-
 let lastPurgeAt = 0
 const PURGE_INTERVAL_MS = 60 * 60 * 1000
 

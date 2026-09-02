@@ -1,8 +1,8 @@
+import { formatFileSize } from '~/utils/file-limits'
 import {
   IMAGE_MAX_INPUT_BYTES,
   IMAGE_MAX_OUTPUT_BYTES,
   IMAGE_MAX_WIDTH,
-  formatFileSize,
   imageInputLimitMessage,
 } from '~/utils/image-limits'
 

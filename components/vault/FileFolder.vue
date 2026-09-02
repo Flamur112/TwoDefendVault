@@ -2,7 +2,8 @@
 import type { VaultFileRecord } from '~/types/vault-file'
 import type { FileTreeItem, FolderNode } from '~/types/file-tree'
 import { fileSizeLimitMessage } from '~/utils/file-limits'
-import { buildVaultFolderTree, countFilesInFolder } from '~/utils/vault-file-tree'
+import { countFilesInFolder } from '~/utils/file-tree'
+import { buildVaultFolderTree } from '~/utils/vault-file-tree'
 import {
   deleteVaultFile,
   downloadVaultFile,

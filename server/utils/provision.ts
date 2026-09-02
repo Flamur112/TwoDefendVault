@@ -133,5 +133,3 @@ export async function resolveUserFromIdentity(
     'Your account is not authorized.',
   )
 }
-
-export { LoginAccessError }

@@ -4,7 +4,10 @@ import { mapClientRecord, normalizeMetadata } from '../../../../utils/client-rec
 import { deleteClientFiles } from '../../../../utils/client-files'
 import { requireProjectEdit } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
-import { parseDocumentAttachments } from '../../../../../utils/document-attachments'
+import {
+  parseDocumentAttachments,
+  parseDocumentAttachmentsFromRow,
+} from '../../../../../utils/document-attachments'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
@@ -47,15 +50,19 @@ export default defineEventHandler(async (event) => {
     updates.notes = body.notes.trim() || null
   }
 
-  if (body?.metadata !== undefined) {
-    updates.metadata = normalizeMetadata(body.metadata)
+  const nextMetadata = body?.metadata !== undefined
+    ? normalizeMetadata(body.metadata)
+    : null
+
+  if (nextMetadata) {
+    updates.metadata = nextMetadata
   }
 
-  if (existing.section === 'documents' && body?.metadata !== undefined) {
+  if (existing.section === 'documents' && nextMetadata) {
     const previousAttachments = parseDocumentAttachmentsFromRow(
       existing.metadata as Record<string, unknown> | null,
     )
-    const nextAttachments = parseDocumentAttachments(normalizeMetadata(body.metadata))
+    const nextAttachments = parseDocumentAttachments(nextMetadata)
     const nextIds = new Set(nextAttachments.map(a => a.id))
     const removedIds = previousAttachments
       .filter(a => !nextIds.has(a.id))
