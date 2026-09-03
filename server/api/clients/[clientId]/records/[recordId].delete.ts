@@ -43,8 +43,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to delete record' })
   }
 
-  if (existing.section === 'documents') {
-    if (existing.notes) {
+  if (existing.section === 'documents' || existing.section === 'files' || existing.section === 'assets') {
+    if (existing.section === 'documents' && existing.notes) {
       const imageIds = extractDocumentImageIds(existing.notes)
       await deleteDocumentImages(client.org_id, clientId, imageIds)
     }

@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from './supabase'
-import { maybeRunRetentionPurge } from './retention-purge'
 
 export async function logClientActivity(
   clientId: string,
@@ -14,8 +13,6 @@ export async function logClientActivity(
     action,
     metadata: metadata ?? null,
   })
-
-  maybeRunRetentionPurge()
 }
 
 export function slugifyClientName(name: string): string {

@@ -1,3 +1,3 @@
 <template>
-  <ClientsSectionPanel section="files" />
+  <ClientsFilesPanel />
 </template>

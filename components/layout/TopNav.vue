@@ -151,6 +151,7 @@ function focusGlobalSearch() {
 }
 
 let globalDebounce: ReturnType<typeof setTimeout> | null = null
+let globalSearchAbort: AbortController | null = null
 
 async function runGlobalSearch() {
   const q = appSearch.query.value.trim()
@@ -160,12 +161,19 @@ async function runGlobalSearch() {
     return
   }
 
+  globalSearchAbort?.abort()
+  globalSearchAbort = new AbortController()
+
   globalLoading.value = true
   globalError.value = ''
   try {
-    globalResults.value = await apiFetch<GlobalSearchResults>('/api/search', { query: { q } })
+    globalResults.value = await apiFetch<GlobalSearchResults>('/api/search', {
+      query: { q },
+      signal: globalSearchAbort.signal,
+    })
   }
-  catch {
+  catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') return
     globalError.value = 'Search failed'
     globalResults.value = { clients: [], credentials: [], records: [] }
   }
@@ -177,7 +185,7 @@ async function runGlobalSearch() {
 watch(appSearch.query, () => {
   if (!showTopSearch.value) return
   if (globalDebounce) clearTimeout(globalDebounce)
-  globalDebounce = setTimeout(runGlobalSearch, 400)
+  globalDebounce = setTimeout(runGlobalSearch, 700)
 })
 
 watch(() => route.path, (path, previousPath) => {

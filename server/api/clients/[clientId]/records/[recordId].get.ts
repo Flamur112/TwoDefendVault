@@ -1,5 +1,7 @@
 import { requireClientInOrg } from '../../../../utils/client-map'
 import { mapClientRecord } from '../../../../utils/client-records'
+import { requireRecordView } from '../../../../../utils/record-access'
+import { requireProjectView } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
@@ -9,7 +11,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Client and record ID required' })
   }
 
-  await requireClientInOrg(event, clientId)
+  const { user: sessionUser } = await requireClientInOrg(event, clientId)
 
   const supabase = getSupabaseAdmin()
   const { data: record, error } = await supabase
@@ -23,13 +25,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Record not found' })
   }
 
-  const user = record.users as { display_name?: string, email?: string } | null
   const mapped = mapClientRecord(record)
+
+  if (mapped.section === 'projects') {
+    requireProjectView(sessionUser, record.metadata)
+  }
+  else {
+    requireRecordView(sessionUser, mapped.metadata)
+  }
+
+  const creator = record.users as { display_name?: string, email?: string } | null
 
   return {
     record: {
       ...mapped,
-      createdByName: user?.display_name ?? user?.email ?? null,
+      createdByName: creator?.display_name ?? creator?.email ?? null,
     },
   }
 })

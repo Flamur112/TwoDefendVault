@@ -16,6 +16,10 @@ type AccessibleVault = {
 const vaultCache = new Map<string, { at: number, vaults: AccessibleVault[] }>()
 const VAULT_CACHE_MS = 60_000
 
+export function clearVaultAccessCache(): void {
+  vaultCache.clear()
+}
+
 export async function requireAuth(event: H3Event): Promise<SessionUser> {
   const user = event.context.user ?? await getSessionUser(event)
   if (!user) {

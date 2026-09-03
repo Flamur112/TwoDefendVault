@@ -9,9 +9,15 @@ const apiFetch = useApiFetch()
 const appSearch = useAppSearch()
 useAppSearchPlaceholder('Search clients...')
 
-const clients = ref<ClientRecord[]>([])
-const loading = ref(true)
-const error = ref('')
+const { data, pending, error, refresh } = useCachedAsyncData(
+  'clients-list',
+  () => apiFetch<{ clients: ClientRecord[] }>('/api/clients'),
+  { ttlMs: 60_000 },
+)
+
+const clients = computed(() => data.value?.clients ?? [])
+const loading = computed(() => pending.value && !data.value)
+
 const showNew = ref(false)
 const newName = ref('')
 const creating = ref(false)
@@ -27,23 +33,6 @@ const deletingInProgress = ref(false)
 const canWrite = computed(() => user.value?.role === 'admin' || user.value?.role === 'member')
 const canDelete = computed(() => user.value?.role === 'admin')
 
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const data = await apiFetch<{ clients: ClientRecord[] }>('/api/clients')
-    clients.value = data.clients
-  }
-  catch {
-    error.value = 'Failed to load clients'
-  }
-  finally {
-    loading.value = false
-  }
-}
-
-await load()
-
 const filteredClients = computed(() => {
   if (!appSearch.normalizedQuery.value) return clients.value
   return clients.value.filter(client =>
@@ -52,10 +41,12 @@ const filteredClients = computed(() => {
 })
 
 const clientCount = computed(() => filteredClients.value.length)
+const loadError = ref('')
 
 function onClientUpdated(updated: ClientRecord) {
-  const idx = clients.value.findIndex(c => c.id === updated.id)
-  if (idx !== -1) clients.value[idx] = updated
+  if (!data.value) return
+  const idx = data.value.clients.findIndex(c => c.id === updated.id)
+  if (idx !== -1) data.value.clients[idx] = updated
 }
 
 function openEdit(client: ClientRecord) {
@@ -67,7 +58,7 @@ function openEdit(client: ClientRecord) {
 async function saveEdit() {
   if (!editing.value || !editName.value.trim()) return
   saving.value = true
-  error.value = ''
+  loadError.value = ''
   try {
     const data = await $fetch<{ client: ClientRecord }>(`/api/clients/${editing.value.id}`, {
       method: 'PATCH',
@@ -80,7 +71,7 @@ async function saveEdit() {
     editing.value = null
   }
   catch {
-    error.value = 'Failed to save client'
+    loadError.value = 'Failed to save client'
   }
   finally {
     saving.value = false
@@ -90,14 +81,15 @@ async function saveEdit() {
 async function confirmDelete() {
   if (!deleting.value) return
   deletingInProgress.value = true
-  error.value = ''
+  loadError.value = ''
   try {
     await $fetch(`/api/clients/${deleting.value.id}`, { method: 'DELETE' })
-    clients.value = clients.value.filter(c => c.id !== deleting.value!.id)
+    invalidateCachedAsyncData('clients-list')
+    await refresh()
     deleting.value = null
   }
   catch {
-    error.value = 'Failed to delete client'
+    loadError.value = 'Failed to delete client'
   }
   finally {
     deletingInProgress.value = false
@@ -117,7 +109,7 @@ async function createClient() {
     await navigateTo(`/clients/${data.client.id}`)
   }
   catch {
-    error.value = 'Failed to create client'
+    loadError.value = 'Failed to create client'
   }
   finally {
     creating.value = false
@@ -146,7 +138,7 @@ async function createClient() {
     </div>
 
     <p v-if="loading" class="text-muted">Loading…</p>
-    <p v-else-if="error" class="error">{{ error }}</p>
+    <p v-else-if="error || loadError" class="error">{{ loadError || 'Failed to load clients' }}</p>
     <div v-else-if="clients.length === 0" class="card empty-state">
       <p class="text-muted">No clients found.</p>
       <button v-if="canWrite" type="button" class="btn btn-primary" @click="showNew = true">

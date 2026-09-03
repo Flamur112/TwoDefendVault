@@ -80,7 +80,7 @@ function clientSectionLink(record: OrgSectionRecord): string {
     <div class="toolbar">
       <div class="toolbar-left">
         <h1 class="page-title">{{ config.label }}</h1>
-        <p class="text-muted description">{{ config.description }}</p>
+        <p class="text-muted description">{{ config.guide.summary }}</p>
         <p v-if="!loading" class="text-muted count-label">
           {{ appSearch.normalizedQuery.value ? `${filteredRecords.length} of ${records.length}` : records.length }}
           {{ records.length === 1 ? 'entry' : 'entries' }} across all clients
@@ -93,6 +93,8 @@ function clientSectionLink(record: OrgSectionRecord): string {
         Manage on clients
       </NuxtLink>
     </div>
+
+    <ClientsSectionGuide v-if="!loading && !error" :guide="config.guide" compact />
 
     <UiPageSearch
       v-if="!loading && !error"

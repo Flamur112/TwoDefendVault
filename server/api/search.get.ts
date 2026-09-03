@@ -2,6 +2,7 @@ import { requireAuth, getAccessibleVaults } from '../utils/authorize'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { CLIENT_SECTIONS, isClientSection } from '../../utils/client-sections'
 import { canViewProject } from '../utils/project-access'
+import { canViewRecord } from '../../utils/record-access'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'
 
 const MAX_CLIENTS = 8
@@ -128,8 +129,10 @@ export default defineEventHandler(async (event) => {
 
   const recordRows = !recordsRes.error
     ? (recordsRes.data ?? []).filter((row) => {
-        if (row.section !== 'projects') return true
-        return canViewProject(user, row.metadata)
+        if (row.section === 'projects') {
+          return canViewProject(user, row.metadata)
+        }
+        return canViewRecord(user, row.metadata as Record<string, string>)
       })
     : []
 

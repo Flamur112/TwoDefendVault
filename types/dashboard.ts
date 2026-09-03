@@ -2,6 +2,18 @@ export interface DashboardStats {
   clientCount: number
   favoriteCount: number
   credentialCount: number
+  expiringLicenseCount: number
+  expiredLicenseCount: number
+}
+
+export interface DashboardExpiringLicense {
+  id: string
+  clientId: string
+  clientName: string
+  title: string
+  expiryStatus: 'expired' | 'soon'
+  expiryLabel: string
+  href: string
 }
 
 export interface DashboardRecentCredential {
@@ -31,4 +43,5 @@ export interface DashboardData {
   favorites: import('~/types/client').ClientRecord[]
   recentCredentials: DashboardRecentCredential[]
   recentActivity: DashboardActivityEntry[]
+  expiringLicenses: DashboardExpiringLicense[]
 }

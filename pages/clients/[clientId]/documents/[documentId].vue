@@ -8,6 +8,7 @@ import {
 import { DOCUMENT_TYPES, getDocumentType } from '~/utils/documents'
 import { formatClientActivityEntry } from '~/utils/client-activity'
 import { formatProjectTimestamp, formatProjectWhen } from '~/utils/projects'
+import { parseAllowedUsers, parseRecordVisibility, type RecordVisibility } from '~/utils/record-access'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,7 @@ const apiFetch = useApiFetch()
 
 const documentId = computed(() => route.params.documentId as string)
 const canWrite = computed(() => user.value?.role !== 'readonly')
+const isAdmin = computed(() => user.value?.role === 'admin')
 
 type DocumentRecord = ClientSectionRecord & { createdByName?: string | null }
 
@@ -36,6 +38,8 @@ const form = reactive({
   docType: 'Info guide',
   content: '',
   attachments: [] as DocumentAttachment[],
+  visibility: 'all' as RecordVisibility,
+  allowedUserIds: [] as string[],
 })
 
 const backLink = computed(() => `/clients/${clientId.value}/documents`)
@@ -49,6 +53,8 @@ function syncFormFromRecord(doc: DocumentRecord) {
   form.docType = getDocumentType(doc.metadata)
   form.content = doc.notes ?? ''
   form.attachments = parseDocumentAttachments(doc.metadata)
+  form.visibility = parseRecordVisibility(doc.metadata)
+  form.allowedUserIds = parseAllowedUsers(doc.metadata).map(user => user.id)
 }
 
 async function loadRecord() {
@@ -129,6 +135,9 @@ async function save() {
           title: form.title.trim(),
           notes: form.content.trim() || null,
           metadata: buildDocumentMetadata(form.docType, form.attachments, record.value.metadata),
+          ...(isAdmin.value
+            ? { visibility: form.visibility, allowedUserIds: form.allowedUserIds }
+            : {}),
         },
       },
     )
@@ -251,6 +260,13 @@ watch(documentId, async () => {
             v-model="form.attachments"
             :client-id="clientId"
             :document-title="form.title"
+          />
+          <ClientsRecordAccessField
+            v-if="isAdmin"
+            :visibility="form.visibility"
+            :allowed-user-ids="form.allowedUserIds"
+            @update:visibility="form.visibility = $event"
+            @update:allowed-user-ids="form.allowedUserIds = $event"
           />
           <p v-if="saveError" class="error">{{ saveError }}</p>
           <div class="form-actions">

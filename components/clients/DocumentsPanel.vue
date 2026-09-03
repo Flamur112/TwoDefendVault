@@ -6,6 +6,10 @@ import {
   type DocumentAttachment,
 } from '~/utils/document-attachments'
 import { DOCUMENT_TYPES, documentExcerpt, getDocumentType } from '~/utils/documents'
+import { CLIENT_SECTIONS } from '~/utils/client-sections'
+import { parseAllowedUsers, parseRecordVisibility, type RecordVisibility } from '~/utils/record-access'
+
+const guide = CLIENT_SECTIONS.documents.guide
 
 const { user } = useSession()
 const ctx = inject<{ clientId: Ref<string> }>('clientContext')!
@@ -30,9 +34,12 @@ const form = reactive({
   docType: 'Info guide',
   content: '',
   attachments: [] as DocumentAttachment[],
+  visibility: 'all' as RecordVisibility,
+  allowedUserIds: [] as string[],
 })
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
+const isAdmin = computed(() => user.value?.role === 'admin')
 
 const filteredRecords = computed(() => {
   if (!appSearch.normalizedQuery.value) return records.value
@@ -74,6 +81,8 @@ function resetForm() {
   form.docType = 'Info guide'
   form.content = ''
   form.attachments = []
+  form.visibility = 'all'
+  form.allowedUserIds = []
 }
 
 function openCreate() {
@@ -99,6 +108,9 @@ async function save() {
           title: form.title.trim(),
           notes: form.content.trim() || null,
           metadata: buildDocumentMetadata(form.docType, form.attachments),
+          ...(isAdmin.value
+            ? { visibility: form.visibility, allowedUserIds: form.allowedUserIds }
+            : {}),
         },
       },
     )
@@ -137,13 +149,21 @@ async function confirmDelete() {
 <template>
   <div class="documents-panel">
     <div class="toolbar">
-      <h2 class="section-title">Documents</h2>
+      <div class="toolbar-left">
+        <h2 class="section-title">Documents</h2>
+        <p v-if="!loading && records.length > 0" class="text-muted count-label">
+          {{ appSearch.normalizedQuery.value ? `${filteredRecords.length} of ${records.length}` : records.length }}
+          {{ records.length === 1 ? 'document' : 'documents' }}
+        </p>
+      </div>
       <div class="toolbar-actions">
         <button v-if="canWrite" type="button" class="btn btn-primary" @click="openCreate">
           New document
         </button>
       </div>
     </div>
+
+    <ClientsSectionGuide v-if="!loading && !error" :guide="guide" />
 
     <UiPageSearch v-if="!loading && !error" placeholder="Search documents..." />
 
@@ -196,6 +216,13 @@ async function confirmDelete() {
             :client-id="clientId"
             :document-title="form.title"
           />
+          <ClientsRecordAccessField
+            v-if="isAdmin"
+            :visibility="form.visibility"
+            :allowed-user-ids="form.allowedUserIds"
+            @update:visibility="form.visibility = $event"
+            @update:allowed-user-ids="form.allowedUserIds = $event"
+          />
           <div class="modal-actions">
             <button type="button" class="btn" @click="closeForm">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="saving">
@@ -225,15 +252,26 @@ async function confirmDelete() {
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .section-title {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.count-label {
+  margin: 0;
+  font-size: 0.8125rem;
 }
 
 .toolbar-actions {

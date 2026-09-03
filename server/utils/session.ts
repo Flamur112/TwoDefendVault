@@ -13,6 +13,22 @@ export interface SessionUser {
 }
 
 const LAST_SEEN_INTERVAL_MS = 5 * 60 * 1000
+const SESSION_CACHE_TTL_MS = 60_000
+
+interface CachedSession {
+  user: SessionUser
+  expiresAt: number
+}
+
+const sessionCache = new Map<string, CachedSession>()
+
+export function invalidateSessionCache(token?: string): void {
+  if (token) {
+    sessionCache.delete(hashToken(token))
+    return
+  }
+  sessionCache.clear()
+}
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -62,6 +78,11 @@ export async function createSession(
 
 export async function validateSession(token: string): Promise<SessionUser | null> {
   const tokenHash = hashToken(token)
+  const cached = sessionCache.get(tokenHash)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.user
+  }
+
   const supabase = getSupabaseAdmin()
 
   const { data: session, error: sessionError } = await supabase
@@ -76,12 +97,24 @@ export async function validateSession(token: string): Promise<SessionUser | null
     .eq('token_hash', tokenHash)
     .maybeSingle()
 
-  if (sessionError || !session) return null
-  if (session.revoked_at) return null
-  if (new Date(session.expires_at) <= new Date()) return null
+  if (sessionError || !session) {
+    sessionCache.delete(tokenHash)
+    return null
+  }
+  if (session.revoked_at) {
+    sessionCache.delete(tokenHash)
+    return null
+  }
+  if (new Date(session.expires_at) <= new Date()) {
+    sessionCache.delete(tokenHash)
+    return null
+  }
 
   const userRow = Array.isArray(session.users) ? session.users[0] : session.users
-  if (!userRow?.is_active) return null
+  if (!userRow?.is_active) {
+    sessionCache.delete(tokenHash)
+    return null
+  }
 
   const lastSeen = session.last_seen_at ? new Date(session.last_seen_at).getTime() : 0
   if (Date.now() - lastSeen > LAST_SEEN_INTERVAL_MS) {
@@ -91,7 +124,7 @@ export async function validateSession(token: string): Promise<SessionUser | null
       .eq('id', session.id)
   }
 
-  return {
+  const user: SessionUser = {
     id: userRow.id,
     orgId: userRow.org_id,
     email: userRow.email,
@@ -99,6 +132,13 @@ export async function validateSession(token: string): Promise<SessionUser | null
     avatarUrl: userRow.avatar_url ?? null,
     role: userRow.role as SessionUser['role'],
   }
+
+  sessionCache.set(tokenHash, {
+    user,
+    expiresAt: Date.now() + SESSION_CACHE_TTL_MS,
+  })
+
+  return user
 }
 
 export async function revokeSession(event: H3Event, token?: string): Promise<void> {
@@ -113,6 +153,7 @@ export async function revokeSession(event: H3Event, token?: string): Promise<voi
     .update({ revoked_at: new Date().toISOString() })
     .eq('token_hash', tokenHash)
 
+  invalidateSessionCache(sessionToken)
   deleteCookie(event, SESSION_COOKIE, cookieOptions(event, 0))
 }
 
@@ -123,6 +164,8 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
     .update({ revoked_at: new Date().toISOString() })
     .eq('user_id', userId)
     .is('revoked_at', null)
+
+  invalidateSessionCache()
 }
 
 export function getSessionToken(event: H3Event): string | undefined {

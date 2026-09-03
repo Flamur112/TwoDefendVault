@@ -5,33 +5,25 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const clientId = computed(() => route.params.clientId as string)
-const clientIdValue = computed(() => clientId.value)
 const { track } = useRecentClients()
 const apiFetch = useApiFetch()
 
-const client = ref<ClientRecord | null>(null)
-const loading = ref(true)
-const error = ref('')
+const { data, pending, error, refresh } = useCachedAsyncData(
+  computed(() => `client-${clientId.value}`),
+  () => apiFetch<{ client: ClientRecord }>(`/api/clients/${clientId.value}`),
+  { ttlMs: 60_000 },
+)
+
+const client = computed(() => data.value?.client ?? null)
+const loading = computed(() => pending.value && !data.value)
+
+watch(client, (value) => {
+  if (value) track(clientId.value)
+}, { immediate: true })
 
 async function loadClient() {
-  loading.value = true
-  error.value = ''
-  try {
-    const data = await apiFetch<{ client: ClientRecord }>(`/api/clients/${clientId.value}`)
-    client.value = data.client
-    track(clientId.value)
-  }
-  catch {
-    error.value = 'Client not found or access denied'
-    client.value = null
-  }
-  finally {
-    loading.value = false
-  }
+  await refresh()
 }
-
-await loadClient()
-watch(clientId, loadClient)
 
 provide('clientContext', {
   client: readonly(client),
@@ -60,7 +52,7 @@ provide('clientContext', {
           </div>
         </div>
       </header>
-      <ClientsClientTabs :client-id="clientIdValue" />
+      <ClientsClientTabs :client-id="clientId" />
       <NuxtPage keepalive :page-key="route => route.path" />
     </template>
   </div>

@@ -57,7 +57,7 @@ export async function requireClientInOrg(event: H3Event, clientId: string) {
 
   const { data: client } = await supabase
     .from('clients')
-    .select('*')
+    .select(CLIENT_LIST_COLUMNS)
     .eq('id', clientId)
     .maybeSingle()
 

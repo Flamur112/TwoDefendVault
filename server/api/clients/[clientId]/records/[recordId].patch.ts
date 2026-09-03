@@ -4,6 +4,7 @@ import { mapClientRecord, normalizeMetadata } from '../../../../utils/client-rec
 import { deleteClientFiles } from '../../../../utils/client-files'
 import { requireProjectEdit } from '../../../../utils/project-access'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
+import { mergeRecordAccessFromBody } from '../../../../utils/record-access-body'
 import {
   parseDocumentAttachments,
   parseDocumentAttachmentsFromRow,
@@ -54,11 +55,22 @@ export default defineEventHandler(async (event) => {
     ? normalizeMetadata(body.metadata)
     : null
 
-  if (nextMetadata) {
-    updates.metadata = nextMetadata
+  const mergedMetadata = await mergeRecordAccessFromBody(
+    client.org_id,
+    user,
+    body,
+    normalizeMetadata(existing.metadata),
+    nextMetadata,
+  )
+
+  if (mergedMetadata) {
+    updates.metadata = mergedMetadata
   }
 
-  if (existing.section === 'documents' && nextMetadata) {
+  if (
+    nextMetadata
+    && (existing.section === 'documents' || existing.section === 'files' || existing.section === 'assets')
+  ) {
     const previousAttachments = parseDocumentAttachmentsFromRow(
       existing.metadata as Record<string, unknown> | null,
     )

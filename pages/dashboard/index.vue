@@ -7,10 +7,10 @@ const { user } = useSession()
 const apiFetch = useApiFetch()
 const { delightType, triggerLoginDelight } = useLoginDelight()
 
-const { data, pending, error } = useAsyncData<DashboardData>(
+const { data, pending, error } = useCachedAsyncData(
   'dashboard',
   () => apiFetch<DashboardData>('/api/dashboard'),
-  { lazy: true, server: false },
+  { ttlMs: 60_000 },
 )
 
 const greeting = computed(() => {
@@ -50,7 +50,7 @@ onMounted(() => {
         </p>
       </div>
       <div v-if="pending && !data" class="hero-stats skeleton-stats" aria-hidden="true">
-        <span v-for="n in 3" :key="n" class="skeleton-stat" />
+        <span v-for="n in 4" :key="n" class="skeleton-stat" />
       </div>
       <div v-else class="hero-stats">
         <div class="hero-stat hero-stat--clients">
@@ -65,6 +65,15 @@ onMounted(() => {
           <span class="hero-stat-value">{{ data?.stats.favoriteCount ?? 0 }}</span>
           <span class="hero-stat-label">Starred</span>
         </div>
+        <div
+          v-if="(data?.stats.expiredLicenseCount ?? 0) + (data?.stats.expiringLicenseCount ?? 0) > 0"
+          class="hero-stat hero-stat--licenses"
+        >
+          <span class="hero-stat-value">
+            {{ (data?.stats.expiredLicenseCount ?? 0) + (data?.stats.expiringLicenseCount ?? 0) }}
+          </span>
+          <span class="hero-stat-label">License alerts</span>
+        </div>
       </div>
     </header>
 
@@ -77,6 +86,12 @@ onMounted(() => {
         :clients="data?.favorites ?? []"
         :loading="pending"
         empty-text="Star clients from the Clients page to pin them here for quick access."
+      />
+
+      <DashboardExpiringLicensesPanel
+        class="licenses-section"
+        :licenses="data?.expiringLicenses ?? []"
+        :loading="pending"
       />
 
       <div v-if="hasFavorites || pending" class="grid-secondary">
@@ -176,7 +191,7 @@ onMounted(() => {
 
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 0.75rem;
   flex-shrink: 0;
 }
@@ -210,6 +225,12 @@ onMounted(() => {
 .hero-stat--credentials .hero-stat-label { color: var(--accent-teal); }
 .hero-stat--favorites .hero-stat-value { color: #fde68a; }
 .hero-stat--favorites .hero-stat-label { color: var(--favorite); }
+.hero-stat--licenses .hero-stat-value { color: #fcd34d; }
+.hero-stat--licenses .hero-stat-label { color: #fbbf24; }
+
+.licenses-section {
+  margin-bottom: 1.25rem;
+}
 
 .skeleton-stats {
   min-width: 280px;

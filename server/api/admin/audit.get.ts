@@ -1,7 +1,6 @@
 import { requireRole } from '../../utils/authorize'
 import { enrichAuditLogs, mapAuditLogRow } from '../../utils/audit'
 import { AUDIT_RETENTION_DAYS } from '../../../utils/retention'
-import { maybeRunRetentionPurge } from '../../utils/retention-purge'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
 const DEFAULT_LIMIT = 100
@@ -9,7 +8,6 @@ const MAX_LIMIT = 500
 
 export default defineEventHandler(async (event) => {
   const admin = await requireRole(event, ['admin'])
-  maybeRunRetentionPurge()
   const query = getQuery(event)
 
   const action = typeof query.action === 'string' && query.action.trim() ? query.action.trim() : undefined

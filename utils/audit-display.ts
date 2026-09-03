@@ -14,6 +14,9 @@ export const AUDIT_METADATA_LABELS: Record<string, string> = {
   selfService: 'Self service',
   name: 'Name',
   vaultId: 'Vault ID',
+  vaultName: 'Vault name',
+  memberCount: 'Members with access',
+  clientId: 'Client ID',
   itemType: 'Credential type',
   changedFields: 'Fields changed',
 }

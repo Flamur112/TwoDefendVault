@@ -1,5 +1,6 @@
 import { requireClientInOrg } from '../../../utils/client-map'
 import { filterVisibleProjects } from '../../../utils/project-access'
+import { listClientLicenseSummary } from '../../../utils/org-licenses'
 import { getSupabaseAdmin } from '../../../utils/supabase'
 
 export default defineEventHandler(async (event) => {
@@ -40,12 +41,25 @@ export default defineEventHandler(async (event) => {
     ? filterVisibleProjects(user, projectRows ?? []).length
     : 0
 
+  let licenseSummary = { expiringCount: 0, expiredCount: 0, attention: [] as Awaited<ReturnType<typeof listClientLicenseSummary>>['attention'] }
+  if (recordsAvailable) {
+    try {
+      licenseSummary = await listClientLicenseSummary(user, clientId)
+    }
+    catch {
+      // Non-blocking if licenses unavailable
+    }
+  }
+
   return {
     stats: {
       credentialCount,
       vaultCount: vaultIds.length,
       assetCount: recordsAvailable ? (assetCount ?? 0) : 0,
       projectCount,
+      expiringLicenseCount: licenseSummary.expiringCount,
+      expiredLicenseCount: licenseSummary.expiredCount,
     },
+    licenseAlerts: licenseSummary.attention,
   }
 })

@@ -1,13 +1,12 @@
 import { requireAuth, getAccessibleVaults } from '../utils/authorize'
 import { countUserFavorites, listUserFavoriteClients } from '../utils/client-favorites'
 import { activityCutoffIso } from '../../utils/retention'
-import { maybeRunRetentionPurge } from '../utils/retention-purge'
+import { listOrgLicenses } from '../utils/org-licenses'
 import { getSupabaseAdmin } from '../utils/supabase'
 import { ITEM_TYPE_LABELS, type VaultItemType } from '../../types/vault'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
-  maybeRunRetentionPurge()
 
   const supabase = getSupabaseAdmin()
   const orgId = user.orgId
@@ -20,6 +19,7 @@ export default defineEventHandler(async (event) => {
     favoriteCount,
     favorites,
     activityRes,
+    licenseRows,
   ] = await Promise.all([
     supabase.from('clients').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
     countUserFavorites(user.id, orgId),
@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
       .gte('created_at', activityCutoffIso())
       .order('created_at', { ascending: false })
       .limit(10),
+    listOrgLicenses(user, { mode: 'attention', expiringWithinDays: 30 }),
   ])
 
   let credentialCount = 0
@@ -99,11 +100,26 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const expiringLicenses = licenseRows
+    .filter(license => license.expiryStatus === 'expired' || license.expiryStatus === 'soon')
+    .slice(0, 8)
+    .map(license => ({
+      id: license.id,
+      clientId: license.clientId,
+      clientName: license.clientName,
+      title: license.title,
+      expiryStatus: license.expiryStatus as 'expired' | 'soon',
+      expiryLabel: license.expiryLabel,
+      href: license.href,
+    }))
+
   return {
     stats: {
       clientCount: clientCountRes.count ?? 0,
       favoriteCount,
       credentialCount,
+      expiringLicenseCount: licenseRows.filter(l => l.expiryStatus === 'soon').length,
+      expiredLicenseCount: licenseRows.filter(l => l.expiryStatus === 'expired').length,
     },
     favorites,
     recentCredentials,
@@ -118,5 +134,6 @@ export default defineEventHandler(async (event) => {
         ?? (row.users as { email?: string } | null)?.email
         ?? 'System',
     })),
+    expiringLicenses,
   }
 })

@@ -2,6 +2,7 @@ import { requireClientInOrg } from '../../../../utils/client-map'
 import { canEditClients, logClientActivity } from '../../../../utils/clients'
 import { mapClientRecord, normalizeMetadata, parseSectionParam } from '../../../../utils/client-records'
 import { getSupabaseAdmin } from '../../../../utils/supabase'
+import { applyRecordAccessFromBody } from '../../../../utils/record-access-body'
 
 export default defineEventHandler(async (event) => {
   const clientId = getRouterParam(event, 'clientId')
@@ -21,6 +22,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Title is required' })
   }
 
+  const metadata = await applyRecordAccessFromBody(
+    user.orgId,
+    user,
+    body,
+    normalizeMetadata(body?.metadata),
+  )
+
   const supabase = getSupabaseAdmin()
   const { data: record, error } = await supabase
     .from('client_records')
@@ -29,7 +37,7 @@ export default defineEventHandler(async (event) => {
       section,
       title,
       notes: notes || null,
-      metadata: normalizeMetadata(body?.metadata),
+      metadata,
       created_by: user.id,
     })
     .select('id, client_id, section, title, notes, metadata, created_at, updated_at')

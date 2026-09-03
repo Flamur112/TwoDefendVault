@@ -15,12 +15,17 @@ import {
   uploadClientFiles,
 } from '~/utils/upload-client-file'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   clientId: string
   modelValue: DocumentAttachment[]
   readonly?: boolean
   documentTitle?: string
-}>()
+  maxAttachments?: number
+  hint?: string | null
+  filterQuery?: string
+}>(), {
+  hint: undefined,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: DocumentAttachment[]]
@@ -40,21 +45,37 @@ const attachments = computed({
   set: value => emit('update:modelValue', value),
 })
 
-const tree = computed(() => buildFolderTree(
-  attachments.value.map(attachment => ({
+const tree = computed(() => {
+  const query = props.filterQuery?.trim().toLowerCase() ?? ''
+  const items = attachments.value.map(attachment => ({
     id: attachment.id,
     name: attachment.name,
     relativePath: attachmentRelativePath(attachment),
     mime: attachment.mime,
     size: attachment.size,
-  })),
-))
+  }))
+
+  if (!query) {
+    return buildFolderTree(items)
+  }
+
+  const filtered = items.filter(item =>
+    item.name.toLowerCase().includes(query)
+    || item.relativePath.toLowerCase().includes(query),
+  )
+
+  return buildFolderTree(filtered)
+})
+
+const hasVisibleFiles = computed(() => countFilesInFolder(tree.value) > 0)
 
 const totalFileCount = computed(() => countFilesInFolder(tree.value))
 const folderCount = computed(() => collectFolderPaths(tree.value).length)
 
+const attachmentLimit = computed(() => props.maxAttachments ?? DOCUMENT_ATTACHMENTS_MAX)
+
 const remainingSlots = computed(() =>
-  Math.max(0, DOCUMENT_ATTACHMENTS_MAX - attachments.value.length),
+  Math.max(0, attachmentLimit.value - attachments.value.length),
 )
 
 const uploadDisabled = computed(() =>
@@ -100,7 +121,7 @@ async function onFilesSelected(event: Event, fromFolder = false) {
   if (files.length === 0) return
 
   if (files.length > remainingSlots.value) {
-    error.value = `Only ${remainingSlots.value} attachment slot${remainingSlots.value === 1 ? '' : 's'} left (max ${DOCUMENT_ATTACHMENTS_MAX})`
+    error.value = `Only ${remainingSlots.value} attachment slot${remainingSlots.value === 1 ? '' : 's'} left (max ${attachmentLimit.value})`
     return
   }
 
@@ -206,12 +227,12 @@ watch(
     <div class="attachments-head">
       <span class="attachments-label">Attachments</span>
       <span v-if="attachments.length > 0" class="text-muted count">
-        {{ attachments.length }} / {{ DOCUMENT_ATTACHMENTS_MAX }}
+        {{ attachments.length }} / {{ attachmentLimit }}
         <template v-if="folderCount > 0"> · {{ folderCount }} folder{{ folderCount === 1 ? '' : 's' }}</template>
       </span>
     </div>
 
-    <div v-if="attachments.length > 0" class="folder-tree">
+    <div v-if="attachments.length > 0 && hasVisibleFiles" class="folder-tree">
       <VaultFolderTreeNode
         :node="tree"
         :can-write="!readonly"
@@ -224,6 +245,9 @@ watch(
       />
     </div>
 
+    <p v-else-if="attachments.length > 0 && filterQuery?.trim()" class="text-muted empty">
+      No files match your search.
+    </p>
     <p v-else-if="readonly" class="text-muted empty">No files attached.</p>
 
     <template v-if="!readonly">
@@ -260,7 +284,7 @@ watch(
       </div>
       <p v-if="uploading" class="status text-muted">{{ uploadStatus || 'Uploading…' }}</p>
       <p v-if="success" class="success">{{ success }}</p>
-      <p class="hint text-muted">{{ fileSizeLimitMessage() }} Save the document to keep attachments.</p>
+      <p v-if="hint !== null" class="hint text-muted">{{ hint ?? `${fileSizeLimitMessage()} Save the document to keep attachments.` }}</p>
     </template>
 
     <p v-if="error" class="error">{{ error }}</p>

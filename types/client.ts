@@ -41,6 +41,8 @@ export interface ClientStats {
   vaultCount: number
   assetCount: number
   projectCount: number
+  expiringLicenseCount: number
+  expiredLicenseCount: number
 }
 
 export interface ClientSectionRecord {

@@ -12,13 +12,9 @@ import {
   serializeAssignees,
   type ProjectAssignee,
 } from '~/utils/projects'
+import { CLIENT_SECTIONS } from '~/utils/client-sections'
 
-interface OrgMember {
-  id: string
-  email: string
-  displayName: string | null
-  role: string
-}
+const guide = CLIENT_SECTIONS.projects.guide
 
 const { user } = useSession()
 const ctx = inject<{ clientId: Ref<string>, client: Ref<{ name: string } | null> }>('clientContext')!
@@ -26,11 +22,11 @@ const clientId = ctx.clientId
 const clientName = computed(() => ctx.client.value?.name ?? '')
 const apiFetch = useApiFetch()
 const appSearch = useAppSearch()
+const { members: orgMembers, loadMembers } = useOrgMembers()
 
 useAppSearchPlaceholder('Search projects...')
 
 const records = ref<ClientSectionRecord[]>([])
-const orgMembers = ref<OrgMember[]>([])
 const loading = ref(true)
 const error = ref('')
 
@@ -78,16 +74,6 @@ const filteredRecords = computed(() => {
 })
 
 const projectViews = computed(() => filteredRecords.value.map(buildProjectViewModel))
-
-async function loadMembers() {
-  try {
-    const data = await apiFetch<{ members: OrgMember[] }>('/api/org/members')
-    orgMembers.value = data.members
-  }
-  catch {
-    orgMembers.value = []
-  }
-}
 
 async function load() {
   loading.value = true
@@ -158,7 +144,7 @@ function closeForm() {
 function buildAssignees(): ProjectAssignee[] {
   return form.assigneeIds
     .map((id) => {
-      const member = orgMembers.value.find(m => m.id === id)
+      const member = orgMembers.value?.find(m => m.id === id)
       if (!member) return null
       return { id: member.id, name: memberLabel(member) }
     })
@@ -341,9 +327,6 @@ function setUpdateText(record: ClientSectionRecord, text: string) {
     <div class="toolbar">
       <div class="toolbar-left">
         <h2 class="section-title">Projects</h2>
-        <p class="text-muted description">
-          Projects start collapsed. Expand one to post updates or view the full timeline.
-        </p>
         <p v-if="!loading" class="text-muted count-label">
           {{ appSearch.normalizedQuery.value ? `${projectViews.length} of ${records.length}` : records.length }}
           {{ records.length === 1 ? 'project' : 'projects' }}
@@ -358,6 +341,8 @@ function setUpdateText(record: ClientSectionRecord, text: string) {
         Add project
       </button>
     </div>
+
+    <ClientsSectionGuide v-if="!loading && !error" :guide="guide" />
 
     <UiPageSearch v-if="!loading && !error" placeholder="Search projects..." />
 
@@ -430,7 +415,7 @@ function setUpdateText(record: ClientSectionRecord, text: string) {
             Assigned team members
             <UiUserMultiSelect
               v-model="form.assigneeIds"
-              :users="orgMembers"
+              :users="orgMembers ?? []"
               placeholder="Search by name or email…"
             />
           </label>

@@ -17,6 +17,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Failed to load team members' })
   }
 
+  setHeader(event, 'Cache-Control', 'private, max-age=300')
+
   return {
     members: (data ?? []).map(row => ({
       id: row.id,

@@ -1,0 +1,2 @@
+export const CLIENT_RECORDS_LIMIT = 500
+export const ORG_LICENSES_LIMIT = 500

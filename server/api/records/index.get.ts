@@ -1,6 +1,7 @@
 import { requireAuth } from '../../utils/authorize'
 import { mapOrgSectionRecord, parseSectionParam } from '../../utils/client-records'
 import { filterVisibleProjects } from '../../utils/project-access'
+import { filterVisibleRecords } from '../../../utils/record-access'
 import { getSupabaseAdmin } from '../../utils/supabase'
 
 const ORG_RECORDS_LIMIT = 500
@@ -39,6 +40,12 @@ export default defineEventHandler(async (event) => {
   let rows = data ?? []
   if (section === 'projects') {
     rows = filterVisibleProjects(user, rows)
+  }
+  else {
+    rows = filterVisibleRecords(user, rows.map(row => ({
+      ...row,
+      metadata: (row.metadata ?? {}) as Record<string, string>,
+    })))
   }
   const truncated = rows.length > ORG_RECORDS_LIMIT
   const records = rows.slice(0, ORG_RECORDS_LIMIT).map(row => mapOrgSectionRecord(row))

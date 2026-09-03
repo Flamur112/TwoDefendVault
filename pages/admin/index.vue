@@ -34,6 +34,13 @@ const { user } = useSession()
           </dd>
         </div>
         <div>
+          <dt>Access control</dt>
+          <dd>
+            Restrict documents, assets, files, and licenses to specific roles (Everyone, Members only, or Admins only).
+            On each client’s Credentials tab, use <strong>Manage access</strong> on a vault to choose which team members can open it.
+          </dd>
+        </div>
+        <div>
           <dt>Audit log</dt>
           <dd>
             Review sign-ins, credential access, and admin changes. Entries are kept for

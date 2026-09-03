@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const supabase = getSupabaseAdmin()
   const { data: items, error } = await supabase
     .from('vault_items')
-    .select('id, vault_id, item_type, name, url, tags, encrypted_data, created_at, updated_at')
+    .select('id, vault_id, item_type, name, url, tags, created_at, updated_at')
     .eq('vault_id', vaultId)
     .order('name')
 
@@ -28,7 +28,6 @@ export default defineEventHandler(async (event) => {
       name: item.name,
       url: item.url,
       tags: item.tags,
-      encryptedData: item.encrypted_data,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     })),

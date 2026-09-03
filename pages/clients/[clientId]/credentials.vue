@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ClientVaultSummary } from '~/types/client'
 import { ITEM_TYPE_LABELS, type VaultItemRecord, type VaultItemType } from '~/types/vault'
+import { CREDENTIALS_GUIDE } from '~/utils/client-sections'
 
 const { user } = useSession()
 const ctx = inject<{ clientId: Ref<string> }>('clientContext')!
@@ -13,10 +14,20 @@ const {
   invalidate: invalidateActivity,
 } = useClientActivity(clientId, { filter: 'credentials', limit: 30 })
 
-const vaults = ref<ClientVaultSummary[]>([])
-const vaultItems = ref<Record<string, VaultItemRecord[]>>({})
-const loading = ref(true)
-const error = ref('')
+const { data: credentialsData, pending: loadingCredentials, error: credentialsError, refresh: refreshCredentials } = useCachedAsyncData(
+  computed(() => `client-credentials-${clientId.value}`),
+  () => apiFetch<{
+    vaults: ClientVaultSummary[]
+    itemsByVault: Record<string, VaultItemRecord[]>
+  }>(`/api/clients/${clientId.value}/credentials`),
+  { ttlMs: 60_000 },
+)
+
+const vaults = computed(() => credentialsData.value?.vaults ?? [])
+const vaultItems = computed(() => credentialsData.value?.itemsByVault ?? {})
+const loading = computed(() => loadingCredentials.value && !credentialsData.value)
+const loadError = ref('')
+const error = computed(() => loadError.value || (credentialsError.value ? 'Failed to load credentials' : ''))
 const showNewVault = ref(false)
 const newVaultName = ref('')
 const savingVault = ref(false)
@@ -36,6 +47,19 @@ const highlightItemId = computed(() =>
 )
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
+const isAdmin = computed(() => user.value?.role === 'admin')
+
+const sharingVault = ref<{ id: string, name: string } | null>(null)
+const sharingModalOpen = ref(false)
+
+function openVaultAccess(vault: ClientVaultSummary) {
+  sharingVault.value = { id: vault.id, name: vault.name }
+  sharingModalOpen.value = true
+}
+
+watch(sharingModalOpen, (open) => {
+  if (!open) sharingVault.value = null
+})
 
 const totalCredentials = computed(() =>
   vaults.value.reduce((n, v) => n + (vaultItems.value[v.id]?.length ?? 0), 0),
@@ -70,28 +94,13 @@ const filteredCount = computed(() =>
 )
 
 async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const data = await apiFetch<{
-      vaults: ClientVaultSummary[]
-      itemsByVault: Record<string, VaultItemRecord[]>
-    }>(`/api/clients/${clientId.value}/credentials`)
-    vaults.value = data.vaults
-    vaultItems.value = data.itemsByVault
-  }
-  catch {
-    error.value = 'Failed to load credentials'
-  }
-  finally {
-    loading.value = false
-  }
+  loadError.value = ''
+  invalidateCachedAsyncData(`client-credentials-${clientId.value}`)
+  await refreshCredentials()
 }
 
 await load()
-onMounted(() => {
-  loadActivity()
-})
+await loadActivity()
 
 function refreshActivity() {
   invalidateActivity()
@@ -125,7 +134,7 @@ async function createVault() {
     refreshActivity()
   }
   catch {
-    error.value = 'Failed to create vault'
+    loadError.value = 'Failed to create vault'
   }
   finally {
     savingVault.value = false
@@ -151,7 +160,7 @@ function startEditCredential(item: VaultItemRecord) {
 async function confirmDeleteCredential() {
   if (!deletingCredential.value) return
   deletingCredentialInProgress.value = true
-  error.value = ''
+  loadError.value = ''
   try {
     await $fetch(`/api/items/${deletingCredential.value.id}`, { method: 'DELETE' })
     deletingCredential.value = null
@@ -159,7 +168,7 @@ async function confirmDeleteCredential() {
     refreshActivity()
   }
   catch {
-    error.value = 'Failed to delete credential'
+    loadError.value = 'Failed to delete credential'
   }
   finally {
     deletingCredentialInProgress.value = false
@@ -169,7 +178,7 @@ async function confirmDeleteCredential() {
 async function confirmDeleteVault() {
   if (!deletingVault.value) return
   deletingVaultInProgress.value = true
-  error.value = ''
+  loadError.value = ''
   try {
     await $fetch(`/api/vaults/${deletingVault.value.id}`, { method: 'DELETE' })
     deletingVault.value = null
@@ -177,7 +186,7 @@ async function confirmDeleteVault() {
     refreshActivity()
   }
   catch {
-    error.value = 'Failed to delete vault'
+    loadError.value = 'Failed to delete vault'
   }
   finally {
     deletingVaultInProgress.value = false
@@ -208,6 +217,8 @@ async function confirmDeleteVault() {
       </div>
     </div>
 
+    <ClientsSectionGuide v-if="!loading && !error" :guide="CREDENTIALS_GUIDE" />
+
     <UiPageSearch
       v-if="!loading && vaults.length > 0"
       placeholder="Search credentials by name, URL, type, or vault..."
@@ -232,6 +243,14 @@ async function confirmDeleteVault() {
           <h3>{{ vault.name }}</h3>
           <div class="vault-header-right">
             <span class="text-muted count">{{ items.length }} items</span>
+            <button
+              v-if="isAdmin"
+              type="button"
+              class="btn btn-sm"
+              @click="openVaultAccess(vault)"
+            >
+              Manage access
+            </button>
             <button
               v-if="canWrite"
               type="button"
@@ -343,6 +362,13 @@ async function confirmDeleteVault() {
         </div>
       </div>
     </div>
+
+    <VaultVaultAccessModal
+      v-if="sharingVault"
+      v-model:open="sharingModalOpen"
+      :vault-id="sharingVault.id"
+      :vault-name="sharingVault.name"
+    />
 
     <div v-if="deletingVault" class="modal-backdrop" @click.self="deletingVault = null">
       <div class="modal card">

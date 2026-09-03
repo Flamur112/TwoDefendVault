@@ -26,6 +26,7 @@ const attachmentCount = computed(() => parseDocumentAttachments(props.record.met
           <span class="summary-title-row">
             <strong class="summary-title">{{ record.title }}</strong>
             <span class="type-badge">{{ getDocumentType(record.metadata) }}</span>
+            <ClientsVisibilityBadge :metadata="record.metadata" />
           </span>
           <span class="summary-meta text-muted">
             Updated {{ formatProjectWhen(record.updatedAt) }}

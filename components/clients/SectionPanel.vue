@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import type { ClientSectionRecord } from '~/types/client'
 import { CLIENT_SECTIONS, sectionFieldDisplayKey, type ClientSection } from '~/utils/client-sections'
+import {
+  DOCUMENT_ATTACHMENTS_KEY,
+  parseDocumentAttachments,
+  serializeDocumentAttachments,
+  type DocumentAttachment,
+} from '~/utils/document-attachments'
+import {
+  parseAllowedUsers,
+  parseRecordVisibility,
+  type RecordVisibility,
+} from '~/utils/record-access'
+import { getLicenseExpiryInfo } from '~/utils/license-expiry'
 
 const props = defineProps<{ section: ClientSection }>()
 
@@ -12,6 +24,7 @@ const appSearch = useAppSearch()
 const { members: orgMembers, loadMembers } = useOrgMembers()
 
 const config = computed(() => CLIENT_SECTIONS[props.section])
+const supportsAttachments = computed(() => props.section === 'assets')
 const needsMembers = computed(() => config.value.fields.some(field => field.type === 'user'))
 
 useAppSearchPlaceholder(`Search ${config.value.label.toLowerCase()}...`)
@@ -30,9 +43,13 @@ const form = reactive({
   title: '',
   notes: '',
   metadata: {} as Record<string, string>,
+  attachments: [] as DocumentAttachment[],
+  visibility: 'all' as RecordVisibility,
+  allowedUserIds: [] as string[],
 })
 
 const canWrite = computed(() => user.value?.role !== 'readonly')
+const isAdmin = computed(() => user.value?.role === 'admin')
 
 async function load() {
   loading.value = true
@@ -75,6 +92,9 @@ function resetForm() {
   form.title = ''
   form.notes = ''
   form.metadata = {}
+  form.attachments = []
+  form.visibility = 'all'
+  form.allowedUserIds = []
   for (const field of config.value.fields) {
     form.metadata[field.key] = ''
   }
@@ -91,6 +111,11 @@ function openEdit(record: ClientSectionRecord) {
   form.title = record.title
   form.notes = record.notes ?? ''
   form.metadata = { ...record.metadata }
+  form.attachments = supportsAttachments.value
+    ? parseDocumentAttachments(record.metadata)
+    : []
+  form.visibility = parseRecordVisibility(record.metadata)
+  form.allowedUserIds = parseAllowedUsers(record.metadata).map(user => user.id)
   for (const field of config.value.fields) {
     if (!(field.key in form.metadata)) form.metadata[field.key] = ''
   }
@@ -120,6 +145,15 @@ function buildMetadata(): Record<string, string> {
     }
   }
 
+  if (supportsAttachments.value) {
+    if (form.attachments.length > 0) {
+      metadata[DOCUMENT_ATTACHMENTS_KEY] = serializeDocumentAttachments(form.attachments)
+    }
+    else {
+      delete metadata[DOCUMENT_ATTACHMENTS_KEY]
+    }
+  }
+
   return metadata
 }
 
@@ -133,6 +167,9 @@ async function save() {
       title: form.title.trim(),
       notes: form.notes.trim() || null,
       metadata: buildMetadata(),
+      ...(isAdmin.value
+        ? { visibility: form.visibility, allowedUserIds: form.allowedUserIds }
+        : {}),
     }
 
     if (editing.value) {
@@ -204,8 +241,17 @@ function memberLabel(member: OrgMember): string {
   return member.displayName?.trim() || member.email
 }
 
+function attachmentCount(record: ClientSectionRecord): number {
+  return parseDocumentAttachments(record.metadata).length
+}
+
 function recordLink(record: ClientSectionRecord): string | undefined {
   return fieldValue(record, 'url')
+}
+
+function licenseExpiry(record: ClientSectionRecord) {
+  if (props.section !== 'licenses') return null
+  return getLicenseExpiryInfo(record.metadata.expiresAt)
 }
 
 function selectPlaceholder(field: (typeof config.value.fields)[number]): string {
@@ -218,7 +264,7 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
     <div class="toolbar">
       <div class="toolbar-left">
         <h2 class="section-title">{{ config.label }}</h2>
-        <p class="text-muted description">{{ config.description }}</p>
+        <p class="text-muted description">{{ config.guide.summary }}</p>
         <p v-if="!loading" class="text-muted count-label">
           {{ appSearch.normalizedQuery.value ? `${filteredRecords.length} of ${records.length}` : records.length }}
           {{ records.length === 1 ? 'entry' : 'entries' }}
@@ -229,9 +275,7 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
       </button>
     </div>
 
-    <div v-if="config.helpText && !loading && !error" class="card section-help">
-      <p>{{ config.helpText }}</p>
-    </div>
+    <ClientsSectionGuide v-if="!loading && !error" :guide="config.guide" />
 
     <UiPageSearch
       v-if="!loading && !error"
@@ -252,7 +296,22 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
     <div v-else class="record-list">
       <article v-for="record in filteredRecords" :key="record.id" class="card record-card">
         <div class="record-header">
-          <h3>{{ record.title }}</h3>
+          <h3>
+            {{ record.title }}
+            <ClientsVisibilityBadge :metadata="record.metadata" />
+            <span
+              v-if="licenseExpiry(record)?.status === 'expired'"
+              class="expiry-badge expired"
+            >
+              Expired
+            </span>
+            <span
+              v-else-if="licenseExpiry(record)?.status === 'soon'"
+              class="expiry-badge soon"
+            >
+              {{ licenseExpiry(record)?.label }}
+            </span>
+          </h3>
           <div class="record-actions">
             <a
               v-if="section === 'documents' && recordLink(record)"
@@ -284,6 +343,16 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
               </dd>
             </div>
           </template>
+          <div v-if="supportsAttachments && attachmentCount(record) > 0">
+            <dt>Files</dt>
+            <dd>{{ attachmentCount(record) }} attached</dd>
+          </div>
+          <div v-if="section === 'licenses' && licenseExpiry(record)?.status !== 'none'">
+            <dt>Expiry</dt>
+            <dd :class="licenseExpiry(record)?.status === 'expired' ? 'expired-text' : licenseExpiry(record)?.status === 'soon' ? 'soon-text' : ''">
+              {{ licenseExpiry(record)?.label }}
+            </dd>
+          </div>
           <div v-if="record.notes">
             <dt>Notes</dt>
             <dd class="notes">{{ record.notes }}</dd>
@@ -332,6 +401,20 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
               :placeholder="field.placeholder"
             >
           </label>
+          <DocumentsDocumentAttachments
+            v-if="supportsAttachments"
+            v-model="form.attachments"
+            :client-id="clientId"
+            :document-title="form.title || 'asset'"
+            hint="Attach photos, warranty PDFs, or config exports. Saved when you click Save."
+          />
+          <ClientsRecordAccessField
+            v-if="isAdmin"
+            :visibility="form.visibility"
+            :allowed-user-ids="form.allowedUserIds"
+            @update:visibility="form.visibility = $event"
+            @update:allowed-user-ids="form.allowedUserIds = $event"
+          />
           <label>
             Notes
             <textarea
@@ -426,6 +509,48 @@ function selectPlaceholder(field: (typeof config.value.fields)[number]): string 
 .record-header h3 {
   margin: 0;
   font-size: 0.9375rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.visibility-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+}
+
+.expiry-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.expiry-badge.expired {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.expiry-badge.soon {
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+}
+
+.expired-text {
+  color: #dc2626;
+}
+
+.soon-text {
+  color: #ca8a04;
 }
 
 .record-actions {
@@ -487,6 +612,10 @@ dd a {
 .modal {
   width: 100%;
   max-width: 480px;
+}
+
+.modal:has(.attachments) {
+  max-width: 760px;
 }
 
 .modal h3 { margin: 0 0 1rem; }
